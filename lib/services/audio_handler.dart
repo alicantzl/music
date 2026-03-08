@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/song_model.dart';
 
 class PureAudioHandler extends BaseAudioHandler
@@ -18,7 +20,9 @@ class PureAudioHandler extends BaseAudioHandler
   PureAudioHandler() {
     _player.playbackEventStream.listen(
       (_) => _broadcastState(),
-      onError: (e) {},
+      onError: (e) {
+        debugPrint('Playback event error: $e');
+      },
     );
     _player.processingStateStream.listen((state) {
       if (state == ProcessingState.completed) _onComplete();
@@ -58,7 +62,12 @@ class PureAudioHandler extends BaseAudioHandler
     await _load(song);
   }
 
+  /// The key method: downloads the YouTube audio stream to a temp file,
+  /// then plays from that local file. This bypasses all iOS URL/header issues.
   Future<void> _load(SongModel song) async {
+    // Stop current playback
+    await _player.stop();
+    
     mediaItem.add(_songToItem(song));
     playbackState.add(playbackState.value.copyWith(
       processingState: AudioProcessingState.loading,
@@ -67,51 +76,83 @@ class PureAudioHandler extends BaseAudioHandler
 
     try {
       if (song.isDownloaded && song.localPath != null) {
-        await _player.setAudioSource(AudioSource.file(song.localPath!));
+        // Already downloaded — play from local file
+        await _player.setFilePath(song.localPath!);
       } else {
-        final manifest = await _yt.videos.streamsClient.getManifest(song.id);
-        
-        // Try multiple strategies to get a working audio stream
-        StreamInfo? streamInfo;
-        
-        // Strategy 1: MP4 audio-only, highest bitrate
-        final mp4Audio = manifest.audioOnly
-            .where((s) => s.container.name.toLowerCase() == 'mp4')
-            .toList();
-        if (mp4Audio.isNotEmpty) {
-          streamInfo = mp4Audio.reduce((a, b) => a.bitrate.compareTo(b.bitrate) > 0 ? a : b);
-        }
-        
-        // Strategy 2: Any audio-only stream
-        if (streamInfo == null && manifest.audioOnly.isNotEmpty) {
-          streamInfo = manifest.audioOnly.withHighestBitrate();
-        }
-        
-        // Strategy 3: Muxed stream (video+audio combined) as last resort
-        if (streamInfo == null && manifest.muxed.isNotEmpty) {
-          streamInfo = manifest.muxed.withHighestBitrate();
-        }
-
-        if (streamInfo == null) {
-          throw Exception('No playable stream found');
-        }
-
-        await _player.setAudioSource(
-          AudioSource.uri(
-            Uri.parse(streamInfo.url.toString()),
-            headers: {'User-Agent': 'Mozilla/5.0'},
-          ),
-        );
+        // Stream from YouTube via temp file approach
+        // This is THE fix for iOS: download the stream bytes to a temp file,
+        // then play from that file. just_audio handles local files perfectly.
+        final tempFile = await _downloadToTemp(song.id);
+        await _player.setFilePath(tempFile.path);
       }
+      
+      // Update duration from player if available
+      final realDuration = _player.duration;
+      if (realDuration != null && realDuration.inSeconds > 0) {
+        mediaItem.add(_songToItem(song).copyWith(duration: realDuration));
+      }
+      
       await _player.play();
     } catch (e) {
-      // On error, broadcast error state so UI can show feedback
       playbackState.add(playbackState.value.copyWith(
         processingState: AudioProcessingState.error,
         playing: false,
       ));
       debugPrint('PureMusic Audio Error: $e');
     }
+  }
+
+  /// Downloads a YouTube audio stream to a temporary file and returns the File.
+  Future<File> _downloadToTemp(String videoId) async {
+    final manifest = await _yt.videos.streamsClient.getManifest(videoId);
+    
+    // Pick the best audio stream
+    StreamInfo? streamInfo;
+    
+    // Strategy 1: MP4 audio-only (best iOS compatibility)
+    final mp4Audio = manifest.audioOnly
+        .where((s) => s.container.name.toLowerCase() == 'mp4')
+        .toList();
+    if (mp4Audio.isNotEmpty) {
+      mp4Audio.sort((a, b) => b.bitrate.compareTo(a.bitrate));
+      // Pick medium quality for faster loading (not the absolute highest)
+      streamInfo = mp4Audio.length > 1 ? mp4Audio[1] : mp4Audio.first;
+    }
+    
+    // Strategy 2: Any audio-only stream
+    if (streamInfo == null && manifest.audioOnly.isNotEmpty) {
+      streamInfo = manifest.audioOnly.withHighestBitrate();
+    }
+    
+    // Strategy 3: Muxed (video+audio) as last resort
+    if (streamInfo == null && manifest.muxed.isNotEmpty) {
+      streamInfo = manifest.muxed.withHighestBitrate();
+    }
+
+    if (streamInfo == null) {
+      throw Exception('No playable stream found for $videoId');
+    }
+
+    // Get temp directory
+    final tempDir = await getTemporaryDirectory();
+    final ext = streamInfo.container.name.toLowerCase() == 'mp4' ? 'm4a' : 'webm';
+    final tempFile = File('${tempDir.path}/puremusic_$videoId.$ext');
+    
+    // Only download if not already cached
+    if (await tempFile.exists() && await tempFile.length() > 1000) {
+      debugPrint('Using cached: ${tempFile.path}');
+      return tempFile;
+    }
+
+    debugPrint('Downloading stream for $videoId...');
+    final stream = _yt.videos.streamsClient.get(streamInfo);
+    final sink = tempFile.openWrite();
+    await stream.pipe(sink);
+    await sink.flush();
+    await sink.close();
+    debugPrint('Downloaded: ${await tempFile.length()} bytes');
+
+    return tempFile;
   }
 
   @override

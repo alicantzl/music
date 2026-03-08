@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:go_router/go_router.dart';
+import 'package:audio_service/audio_service.dart';
 import '../providers/player_provider.dart';
 import '../models/song_model.dart';
 import '../services/download_service.dart';
@@ -56,6 +57,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final song = ref.watch(currentSongProvider).value;
     final isPlaying = ref.watch(isPlayingProvider);
     final position = ref.watch(positionProvider).value ?? Duration.zero;
+    final processingState = ref.watch(processingStateProvider);
+    final isBuffering = processingState == AudioProcessingState.loading || processingState == AudioProcessingState.buffering;
 
     if (song == null) {
       return Scaffold(
@@ -220,15 +223,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         icon: const Icon(Icons.skip_previous_rounded, size: 42, color: Colors.white),
                         onPressed: () => ref.read(playerNotifierProvider.notifier).skipToPrevious(),
                       ),
-                      // Play/Pause
+                      // Play/Pause with loading state
                       GestureDetector(
-                        onTap: () => ref.read(playerNotifierProvider.notifier).togglePlayPause(),
+                        onTap: isBuffering ? null : () => ref.read(playerNotifierProvider.notifier).togglePlayPause(),
                         child: Container(
                           width: 64,
                           height: 64,
                           decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white),
-                          child: Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                              color: Colors.black, size: 40),
+                          child: isBuffering
+                              ? const Padding(
+                                  padding: EdgeInsets.all(16),
+                                  child: CircularProgressIndicator(color: Colors.black, strokeWidth: 3),
+                                )
+                              : Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                                  color: Colors.black, size: 40),
                         ),
                       ),
                       IconButton(
