@@ -147,8 +147,16 @@ class PureAudioHandler extends BaseAudioHandler
         throw Exception('No MP4 stream available');
       }
 
-      // Play directly from URL
-      await _player.setUrl(streamUri.toString());
+      // Play directly from URL but enforce a standard browser User-Agent
+      // iOS AVPlayer's native User-Agent is blocked by YouTube (causes infinite loading)
+      await _player.setAudioSource(
+        AudioSource.uri(
+          streamUri,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+          },
+        ),
+      );
 
       // Update duration from actual stream
       final realDuration = _player.duration;

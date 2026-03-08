@@ -40,13 +40,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final result = await _downloadService.downloadSong(song);
     if (mounted) {
       setState(() => _isDownloading = false);
+      final isSuccess = !result.startsWith('Error');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            result != null ? '✅ Downloaded!' : '❌ Download failed',
+            isSuccess ? '✅ Downloaded!' : '❌ $result',
             style: const TextStyle(color: Colors.white),
           ),
-          backgroundColor: result != null ? const Color(0xFF1DB954) : Colors.red,
+          backgroundColor: isSuccess ? const Color(0xFF1DB954) : Colors.red,
+          duration: const Duration(seconds: 4),
         ),
       );
     }

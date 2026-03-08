@@ -8,7 +8,7 @@ import '../models/song_model.dart';
 class DownloadService {
   final YoutubeExplode _yt = YoutubeExplode();
 
-  Future<SongModel?> downloadSong(SongModel song) async {
+  Future<String> downloadSong(SongModel song) async {
     try {
       // Check if already downloaded
       final box = Hive.box('downloads');
@@ -17,7 +17,7 @@ class DownloadService {
         final path = existing['localPath'] as String?;
         if (path != null && await File(path).exists()) {
           debugPrint('Already downloaded: $path');
-          return SongModel.fromMap(existing);
+          return 'Already downloaded';
         }
       }
 
@@ -37,7 +37,7 @@ class DownloadService {
       } else if (manifest.audioOnly.isNotEmpty) {
         audioStream = manifest.audioOnly.withHighestBitrate();
       } else {
-        throw Exception('No audio stream available');
+        return 'Error: No audio stream available';
       }
 
       // Save to permanent app documents directory
@@ -66,10 +66,10 @@ class DownloadService {
       // Save to Hive for persistence
       await box.put(song.id, downloadedSong.toMap());
 
-      return downloadedSong;
+      return file.path;
     } catch (e) {
       debugPrint('Download error: $e');
-      return null;
+      return 'Error: $e';
     }
   }
 
