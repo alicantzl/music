@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
@@ -68,27 +69,48 @@ class PureAudioHandler extends BaseAudioHandler
       if (song.isDownloaded && song.localPath != null) {
         await _player.setAudioSource(AudioSource.file(song.localPath!));
       } else {
-        // Fetch raw manifest safely to ensure arbitrary network streaming via just_audio works flawlessly
         final manifest = await _yt.videos.streamsClient.getManifest(song.id);
         
-        final audioStreams = manifest.audioOnly
+        // Try multiple strategies to get a working audio stream
+        StreamInfo? streamInfo;
+        
+        // Strategy 1: MP4 audio-only, highest bitrate
+        final mp4Audio = manifest.audioOnly
             .where((s) => s.container.name.toLowerCase() == 'mp4')
             .toList();
+        if (mp4Audio.isNotEmpty) {
+          streamInfo = mp4Audio.reduce((a, b) => a.bitrate.compareTo(b.bitrate) > 0 ? a : b);
+        }
         
-        final streamInfo = audioStreams.isNotEmpty 
-            ? audioStreams.reduce((a, b) => a.bitrate.compareTo(b.bitrate) > 0 ? a : b)
-            : manifest.audioOnly.withHighestBitrate();
+        // Strategy 2: Any audio-only stream
+        if (streamInfo == null && manifest.audioOnly.isNotEmpty) {
+          streamInfo = manifest.audioOnly.withHighestBitrate();
+        }
+        
+        // Strategy 3: Muxed stream (video+audio combined) as last resort
+        if (streamInfo == null && manifest.muxed.isNotEmpty) {
+          streamInfo = manifest.muxed.withHighestBitrate();
+        }
+
+        if (streamInfo == null) {
+          throw Exception('No playable stream found');
+        }
 
         await _player.setAudioSource(
-          AudioSource.uri(Uri.parse(streamInfo.url.toString())),
+          AudioSource.uri(
+            Uri.parse(streamInfo.url.toString()),
+            headers: {'User-Agent': 'Mozilla/5.0'},
+          ),
         );
       }
       await _player.play();
     } catch (e) {
+      // On error, broadcast error state so UI can show feedback
       playbackState.add(playbackState.value.copyWith(
         processingState: AudioProcessingState.error,
         playing: false,
       ));
+      debugPrint('PureMusic Audio Error: $e');
     }
   }
 

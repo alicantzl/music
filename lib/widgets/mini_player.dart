@@ -14,91 +14,78 @@ class MiniPlayer extends ConsumerWidget {
 
     if (currentSong == null) return const SizedBox.shrink();
 
-    final progress = currentSong.duration.inSeconds > 0
-        ? position.inSeconds / currentSong.duration.inSeconds
-        : 0.0;
+    final maxDur = currentSong.duration.inSeconds > 0 ? currentSong.duration.inSeconds : 1;
+    final progress = (position.inSeconds / maxDur).clamp(0.0, 1.0);
 
     return GestureDetector(
       onTap: () => context.push('/player'),
       child: Container(
-        height: 64,
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
-          color: const Color(0xFF282828),
-          borderRadius: BorderRadius.circular(8),
+          color: const Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, -2))],
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
+            SizedBox(
+              height: 60,
               child: Row(
                 children: [
                   const SizedBox(width: 8),
-                  // Album Art
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(6),
                     child: Image.network(
                       currentSong.albumArt,
-                      width: 48,
-                      height: 48,
+                      width: 44,
+                      height: 44,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
-                        width: 48,
-                        height: 48,
-                        color: Colors.grey[800],
-                        child: const Icon(Icons.music_note, color: Colors.white),
+                        width: 44, height: 44, color: Colors.grey[800],
+                        child: const Icon(Icons.music_note, color: Colors.white38, size: 20),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  // Title & Artist
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          currentSong.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
-                        ),
-                        Text(
-                          currentSong.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                        ),
+                        Text(currentSong.title,
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white)),
+                        const SizedBox(height: 2),
+                        Text(currentSong.artist,
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: Colors.grey[400], fontSize: 11)),
                       ],
                     ),
-                   ),
-                  // Controls
+                  ),
                   IconButton(
                     icon: Icon(
-                      isPlaying ? Icons.pause : Icons.play_arrow,
+                      isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                       color: Colors.white,
-                      size: 28,
+                      size: 30,
                     ),
                     onPressed: () => ref.read(playerNotifierProvider.notifier).togglePlayPause(),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.skip_next, color: Colors.white, size: 28),
+                    icon: const Icon(Icons.skip_next_rounded, color: Colors.white, size: 26),
                     onPressed: () => ref.read(playerNotifierProvider.notifier).skipToNext(),
                   ),
                   const SizedBox(width: 4),
                 ],
               ),
             ),
-            // Progress Bar
-            Container(
-              height: 2,
-              width: double.infinity,
-              color: Colors.white24,
-              alignment: Alignment.centerLeft,
-              child: FractionallySizedBox(
-                widthFactor: progress.clamp(0.0, 1.0),
-                child: Container(color: Colors.white),
-              ),
+            // Progress indicator
+            LinearProgressIndicator(
+              value: progress,
+              backgroundColor: Colors.white10,
+              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1DB954)),
+              minHeight: 2,
             ),
           ],
         ),

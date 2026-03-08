@@ -11,12 +11,8 @@ class MainScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      body: Column(
-        children: [
-          Expanded(child: child),
-          const MiniPlayer(),
-        ],
-      ),
+      body: child,
+      bottomSheet: const MiniPlayer(),
       bottomNavigationBar: Theme(
         data: Theme.of(context).copyWith(
           splashColor: Colors.transparent,
@@ -25,6 +21,15 @@ class MainScreen extends ConsumerWidget {
         child: BottomNavigationBar(
           currentIndex: _calculateSelectedIndex(context),
           onTap: (index) => _onItemTapped(index, context),
+          backgroundColor: const Color(0xFF0A0A0A),
+          selectedItemColor: Colors.white,
+          unselectedItemColor: Colors.grey[600],
+          showSelectedLabels: true,
+          showUnselectedLabels: true,
+          type: BottomNavigationBarType.fixed,
+          selectedLabelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+          unselectedLabelStyle: const TextStyle(fontSize: 10),
+          elevation: 0,
           items: const [
             BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined),
@@ -32,8 +37,8 @@ class MainScreen extends ConsumerWidget {
               label: 'Home',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.search),
-              activeIcon: Icon(Icons.search, size: 28),
+              icon: Icon(Icons.search_rounded),
+              activeIcon: Icon(Icons.search_rounded, size: 28),
               label: 'Search',
             ),
             BottomNavigationBarItem(

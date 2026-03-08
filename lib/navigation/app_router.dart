@@ -20,15 +20,15 @@ class AppRouter {
         routes: [
           GoRoute(
             path: '/',
-            builder: (context, state) => const HomeScreen(),
+            pageBuilder: (context, state) => const NoTransitionPage(child: HomeScreen()),
           ),
           GoRoute(
             path: '/search',
-            builder: (context, state) => const SearchScreen(),
+            pageBuilder: (context, state) => const NoTransitionPage(child: SearchScreen()),
           ),
           GoRoute(
             path: '/library',
-            builder: (context, state) => const LibraryScreen(),
+            pageBuilder: (context, state) => const NoTransitionPage(child: LibraryScreen()),
           ),
         ],
       ),
@@ -43,7 +43,7 @@ class AppRouter {
               return SlideTransition(
                 position: animation.drive(
                   Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
-                      .chain(CurveTween(curve: Curves.easeOutQuart)),
+                      .chain(CurveTween(curve: Curves.easeOutCubic)),
                 ),
                 child: child,
               );
