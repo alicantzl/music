@@ -36,57 +36,33 @@ jobs:
         run: pod install --repo-update
         working-directory: ios
 
-      - name: 🏗️ Build iOS Archive (Native Flutter Command)
-        # Generates a flawless Runner.xcarchive natively within Flutter tooling
-        # Skips only the final codesign step
-        run: flutter build ipa --release --no-codesign --obfuscate --split-debug-info=build/app/outputs/symbols
+      - name: 🏗️ Build iOS App Folder (Native Flutter Command)
+        # We use 'build ios' instead of 'build ipa' because it's more reliable for unsigned builds.
+        run: flutter build ios --release --no-codesign --obfuscate --split-debug-info=build/app/outputs/symbols
 
-      - name: 🔍 Verify built archive
+      - name: 📦 Package unsigned IPA (Kesin Çözüm)
         run: |
-          APP_PATH="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app"
-          if [ -d "$APP_PATH" ]; then
-            echo "✅ Runner.app found in archive!"
-            du -sh "$APP_PATH"
-            ls -la "$APP_PATH/Frameworks" || echo "No Frameworks folder"
-          else
-            echo "❌ Runner.app not found!"
-            find build/ios/archive -type d
-            exit 1
-          fi
-
-      - name: 📦 Package unsigned IPA
-        run: |
-          APP_PATH="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app"
+          # 1. Create Payload folder
           mkdir -p Payload
-          # Copy the Runner.app cleanly. Using -RL resolves all symlinks into hard copies
-          # ensuring no "alias" files break Sideloadly.
-          cp -RL "$APP_PATH" Payload/
           
-          # Force inject standard frameworks if missing or symlinked out
-          mkdir -p Payload/Runner.app/Frameworks
+          # 2. Critical Step: Copy the .app into Payload.
+          # -H follows command line links.
+          # -L follows ALL links in the source (converts symlinks to real files).
+          # -R is recursive.
+          # This is what prevents the 6MB "empty shell" problem.
+          cp -HLR build/ios/iphoneos/Runner.app Payload/
           
-          echo "Checking App.framework inside Payload..."
-          if [ ! -d "Payload/Runner.app/Frameworks/App.framework" ]; then
-            echo "Manually copying App.framework..."
-            cp -RL build/ios/Release-iphoneos/App.framework Payload/Runner.app/Frameworks/ || true
-          fi
+          # 3. Size Verification for Logs
+          echo "✅ Frameworks Integrity Check:"
+          du -sh Payload/Runner.app/Frameworks/*
           
-          echo "Checking Flutter.framework inside Payload..."
-          if [ ! -d "Payload/Runner.app/Frameworks/Flutter.framework" ]; then
-            echo "Manually copying Flutter.framework..."
-            cp -RL build/ios/Release-iphoneos/Flutter.framework Payload/Runner.app/Frameworks/ || true
-          fi
-          
-          echo "✅ Pre-zip Payload Size:"
-          du -sh Payload/Runner.app
-          ls -lh Payload/Runner.app/Frameworks/ || true
-
-          # Create the IPA
+          # 4. Zip it
           zip -qr PureMusic-unsigned.ipa Payload
           
+          # 5. Output
           mkdir -p build/ios/ipa
           mv PureMusic-unsigned.ipa build/ios/ipa/
-          echo "✅ Final IPA size:"
+          echo "✅ Final IPA Created. Size:"
           ls -lh build/ios/ipa/
 
       - name: 📤 Upload IPA
