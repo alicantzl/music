@@ -52,6 +52,18 @@ class SongModel {
     );
   }
 
+  factory SongModel.fromMap(Map<String, dynamic> map) {
+    return SongModel(
+      id: map['id'],
+      title: map['title'],
+      artist: map['artist'],
+      albumArt: map['albumArt'],
+      durationSeconds: map['durationSeconds'] ?? 0,
+      localPath: map['localPath'],
+      album: map['album'],
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,

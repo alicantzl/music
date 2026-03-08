@@ -11,16 +11,10 @@ class MainScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      body: Stack(
+      body: Column(
         children: [
-          child,
-          // Positioned above BottomNavBar
-          const Positioned(
-            left: 8,
-            right: 8,
-            bottom: 0,
-            child: MiniPlayer(),
-          ),
+          Expanded(child: child),
+          const MiniPlayer(),
         ],
       ),
       bottomNavigationBar: Theme(

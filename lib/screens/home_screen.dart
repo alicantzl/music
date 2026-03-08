@@ -85,25 +85,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     itemCount: _trending.length.clamp(0, 6),
                     itemBuilder: (context, index) {
                       final song = _trending[index];
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF282828),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: Row(
-                          children: [
-                            Image.network(song.albumArt, width: 56, height: 56, fit: BoxFit.cover),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                song.title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      return GestureDetector(
+                        onTap: () => ref.read(playerNotifierProvider.notifier).playSong(song, queue: _trending.take(6).toList()),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF282828),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Row(
+                            children: [
+                              Image.network(song.albumArt, width: 56, height: 56, fit: BoxFit.cover),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  song.title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       );
                     },
