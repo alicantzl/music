@@ -9,9 +9,7 @@ import 'models/song_model.dart';
 import 'models/playlist_model.dart';
 import 'services/audio_handler.dart';
 import 'providers/audio_handler_provider.dart';
-
-// Screens will be created later
-import 'screens/home_screen.dart';
+import 'navigation/app_router.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -71,7 +69,7 @@ class PureMusicApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'PureMusic',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
@@ -79,10 +77,10 @@ class PureMusicApp extends StatelessWidget {
         primaryColor: const Color(0xFF1DB954),
         colorScheme: const ColorScheme.dark(
           primary: Color(0xFF1DB954),
-          surface: Color(0xFF12121A),
+          surface: Color(0xFF121212),
         ),
       ),
-      home: const HomeScreen(),
+      routerConfig: AppRouter.router,
     );
   }
 }
