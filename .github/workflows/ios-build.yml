@@ -58,9 +58,32 @@ jobs:
         run: |
           APP_PATH="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app"
           mkdir -p Payload
-          # Critical: cp -Rp and zip -qry preserve the symlinks essential for iOS frameworks
-          cp -Rp "$APP_PATH" Payload/
-          zip -qry PureMusic-unsigned.ipa Payload
+          # Copy the Runner.app cleanly. Using -RL resolves all symlinks into hard copies
+          # ensuring no "alias" files break Sideloadly.
+          cp -RL "$APP_PATH" Payload/
+          
+          # Force inject standard frameworks if missing or symlinked out
+          mkdir -p Payload/Runner.app/Frameworks
+          
+          echo "Checking App.framework inside Payload..."
+          if [ ! -d "Payload/Runner.app/Frameworks/App.framework" ]; then
+            echo "Manually copying App.framework..."
+            cp -RL build/ios/Release-iphoneos/App.framework Payload/Runner.app/Frameworks/ || true
+          fi
+          
+          echo "Checking Flutter.framework inside Payload..."
+          if [ ! -d "Payload/Runner.app/Frameworks/Flutter.framework" ]; then
+            echo "Manually copying Flutter.framework..."
+            cp -RL build/ios/Release-iphoneos/Flutter.framework Payload/Runner.app/Frameworks/ || true
+          fi
+          
+          echo "✅ Pre-zip Payload Size:"
+          du -sh Payload/Runner.app
+          ls -lh Payload/Runner.app/Frameworks/ || true
+
+          # Create the IPA
+          zip -qr PureMusic-unsigned.ipa Payload
+          
           mkdir -p build/ios/ipa
           mv PureMusic-unsigned.ipa build/ios/ipa/
           echo "✅ Final IPA size:"
