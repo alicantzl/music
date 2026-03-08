@@ -3,8 +3,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../models/song_model.dart';
 
 class PureAudioHandler extends BaseAudioHandler
@@ -18,15 +19,30 @@ class PureAudioHandler extends BaseAudioHandler
   AudioServiceRepeatMode _repeatMode = AudioServiceRepeatMode.none;
 
   PureAudioHandler() {
+    _initSession();
     _player.playbackEventStream.listen(
       (_) => _broadcastState(),
-      onError: (e) {
-        debugPrint('Playback event error: $e');
-      },
+      onError: (e) => debugPrint('Playback event error: $e'),
     );
     _player.processingStateStream.listen((state) {
       if (state == ProcessingState.completed) _onComplete();
     });
+  }
+
+  Future<void> _initSession() async {
+    final session = await AudioSession.instance;
+    await session.configure(const AudioSessionConfiguration(
+      avAudioSessionCategory: AVAudioSessionCategory.playback,
+      avAudioSessionMode: AVAudioSessionMode.defaultMode,
+      avAudioSessionRouteSharingPolicy: AVAudioSessionRouteSharingPolicy.defaultPolicy,
+      avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
+      androidAudioAttributes: AndroidAudioAttributes(
+        contentType: AndroidAudioContentType.music,
+        usage: AndroidAudioUsage.media,
+      ),
+      androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+      androidWillPauseWhenDucked: true,
+    ));
   }
 
   Future<void> _onComplete() async {
@@ -62,12 +78,9 @@ class PureAudioHandler extends BaseAudioHandler
     await _load(song);
   }
 
-  /// The key method: downloads the YouTube audio stream to a temp file,
-  /// then plays from that local file. This bypasses all iOS URL/header issues.
   Future<void> _load(SongModel song) async {
-    // Stop current playback
     await _player.stop();
-    
+
     mediaItem.add(_songToItem(song));
     playbackState.add(playbackState.value.copyWith(
       processingState: AudioProcessingState.loading,
@@ -75,84 +88,82 @@ class PureAudioHandler extends BaseAudioHandler
     ));
 
     try {
+      // First check: song model says it's downloaded
       if (song.isDownloaded && song.localPath != null) {
-        // Already downloaded — play from local file
-        await _player.setFilePath(song.localPath!);
-      } else {
-        // Stream from YouTube via temp file approach
-        // This is THE fix for iOS: download the stream bytes to a temp file,
-        // then play from that file. just_audio handles local files perfectly.
-        final tempFile = await _downloadToTemp(song.id);
-        await _player.setFilePath(tempFile.path);
+        final file = File(song.localPath!);
+        if (await file.exists()) {
+          debugPrint('Playing from model local path');
+          await _player.setFilePath(song.localPath!);
+          await _player.play();
+          return;
+        }
       }
-      
-      // Update duration from player if available
+
+      // Second check: Hive downloads box (user pressed download button before)
+      final downloadsBox = Hive.box('downloads');
+      if (downloadsBox.containsKey(song.id)) {
+        final data = Map<String, dynamic>.from(downloadsBox.get(song.id) as Map);
+        final localPath = data['localPath'] as String?;
+        if (localPath != null) {
+          final file = File(localPath);
+          if (await file.exists()) {
+            debugPrint('Playing from permanent download: $localPath');
+            await _player.setFilePath(localPath);
+            await _player.play();
+            return;
+          }
+        }
+      }
+
+      // Get YouTube stream - ONLY MP4/M4A format (iOS compatible)
+      final manifest = await _yt.videos.streamsClient.getManifest(song.id);
+
+      // iOS ONLY supports MP4/AAC. WebM/Opus will NOT work.
+      // Priority: audio-only MP4 > muxed MP4
+      final mp4AudioOnly = manifest.audioOnly
+          .where((s) => s.container.name.toLowerCase() == 'mp4')
+          .toList();
+
+      Uri streamUri;
+      if (mp4AudioOnly.isNotEmpty) {
+        // Sort by bitrate, pick highest
+        mp4AudioOnly.sort((a, b) => b.bitrate.compareTo(a.bitrate));
+        streamUri = mp4AudioOnly.first.url;
+        debugPrint('Using MP4 audio-only: ${mp4AudioOnly.first.bitrate}bps');
+      } else if (manifest.muxed.isNotEmpty) {
+        // Fallback: muxed MP4 (has video too but works)
+        final muxed = manifest.muxed
+            .where((s) => s.container.name.toLowerCase() == 'mp4')
+            .toList();
+        if (muxed.isNotEmpty) {
+          muxed.sort((a, b) => b.bitrate.compareTo(a.bitrate));
+          streamUri = muxed.first.url;
+          debugPrint('Using muxed MP4: ${muxed.first.bitrate}bps');
+        } else {
+          streamUri = manifest.muxed.first.url;
+          debugPrint('Using muxed fallback');
+        }
+      } else {
+        throw Exception('No MP4 stream available');
+      }
+
+      // Play directly from URL
+      await _player.setUrl(streamUri.toString());
+
+      // Update duration from actual stream
       final realDuration = _player.duration;
       if (realDuration != null && realDuration.inSeconds > 0) {
         mediaItem.add(_songToItem(song).copyWith(duration: realDuration));
       }
-      
+
       await _player.play();
     } catch (e) {
       playbackState.add(playbackState.value.copyWith(
         processingState: AudioProcessingState.error,
         playing: false,
       ));
-      debugPrint('PureMusic Audio Error: $e');
+      debugPrint('Audio Error: $e');
     }
-  }
-
-  /// Downloads a YouTube audio stream to a temporary file and returns the File.
-  Future<File> _downloadToTemp(String videoId) async {
-    final manifest = await _yt.videos.streamsClient.getManifest(videoId);
-    
-    // Pick the best audio stream
-    StreamInfo? streamInfo;
-    
-    // Strategy 1: MP4 audio-only (best iOS compatibility)
-    final mp4Audio = manifest.audioOnly
-        .where((s) => s.container.name.toLowerCase() == 'mp4')
-        .toList();
-    if (mp4Audio.isNotEmpty) {
-      mp4Audio.sort((a, b) => b.bitrate.compareTo(a.bitrate));
-      // Pick medium quality for faster loading (not the absolute highest)
-      streamInfo = mp4Audio.length > 1 ? mp4Audio[1] : mp4Audio.first;
-    }
-    
-    // Strategy 2: Any audio-only stream
-    if (streamInfo == null && manifest.audioOnly.isNotEmpty) {
-      streamInfo = manifest.audioOnly.withHighestBitrate();
-    }
-    
-    // Strategy 3: Muxed (video+audio) as last resort
-    if (streamInfo == null && manifest.muxed.isNotEmpty) {
-      streamInfo = manifest.muxed.withHighestBitrate();
-    }
-
-    if (streamInfo == null) {
-      throw Exception('No playable stream found for $videoId');
-    }
-
-    // Get temp directory
-    final tempDir = await getTemporaryDirectory();
-    final ext = streamInfo.container.name.toLowerCase() == 'mp4' ? 'm4a' : 'webm';
-    final tempFile = File('${tempDir.path}/puremusic_$videoId.$ext');
-    
-    // Only download if not already cached
-    if (await tempFile.exists() && await tempFile.length() > 1000) {
-      debugPrint('Using cached: ${tempFile.path}');
-      return tempFile;
-    }
-
-    debugPrint('Downloading stream for $videoId...');
-    final stream = _yt.videos.streamsClient.get(streamInfo);
-    final sink = tempFile.openWrite();
-    await stream.pipe(sink);
-    await sink.flush();
-    await sink.close();
-    debugPrint('Downloaded: ${await tempFile.length()} bytes');
-
-    return tempFile;
   }
 
   @override
@@ -209,10 +220,6 @@ class PureAudioHandler extends BaseAudioHandler
     playbackState.add(playbackState.value.copyWith(repeatMode: mode));
   }
 
-  Future<void> addToQueue(SongModel song) async => _queue.add(song);
-  Future<void> addToQueueNext(SongModel song) async =>
-      _queue.insert(_currentIndex + 1, song);
-
   void _broadcastState() {
     final playing = _player.playing;
     playbackState.add(playbackState.value.copyWith(
@@ -250,7 +257,7 @@ class PureAudioHandler extends BaseAudioHandler
         album: song.album ?? 'YouTube Music',
         duration: song.duration,
         artUri: Uri.tryParse(song.albumArt),
-        extras: {'localPath': song.localPath, 'isDownloaded': song.isDownloaded},
+        extras: {'localPath': song.localPath},
       );
 
   AudioPlayer get player => _player;
