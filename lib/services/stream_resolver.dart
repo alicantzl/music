@@ -12,6 +12,14 @@ class ResolvedStream {
 class StreamResolver {
   static final YoutubeExplode _yt = YoutubeExplode();
   
+  static String _cleanString(String text) {
+    var cleaned = text.replaceAll(RegExp(r'\[.*?\]|\(.*?\)', caseSensitive: false), '');
+    cleaned = cleaned.replaceAll(RegExp(r'(official|audio|video|music|lyric|lyrics|hq|hd|4k|8k|remix|edit|-)', caseSensitive: false), '');
+    // Allow Turkish specific characters + alphanumeric
+    cleaned = cleaned.replaceAll(RegExp(r'[^a-zA-Z0-9 öüşçğıİÖÜŞÇĞ ]'), ' ');
+    return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
   static Future<ResolvedStream?> resolve(String videoId, {String? title, String? artist, bool dataSaver = false}) async {
     debugPrint('[StreamResolver] 🎵 Starting Resolution: $videoId');
     
@@ -101,9 +109,5 @@ class StreamResolver {
 
     debugPrint('[StreamResolver] ❌ All sources failed for $videoId');
     return null;
-  }
-}
-
-    return null; 
   }
 }
