@@ -35,24 +35,22 @@ void main() async {
     Hive.openBox('settings'),
   ]);
 
-  late final PureAudioHandler handler;
-  try {
-    handler = await AudioService.init<PureAudioHandler>(
-      builder: () => PureAudioHandler(),
-      config: const AudioServiceConfig(
-        androidNotificationChannelId: 'com.puremusic.audio',
-        androidNotificationChannelName: 'PureMusic',
-        androidNotificationOngoing: true,
-        androidStopForegroundOnPause: true,
-        notificationColor: Color(0xFF1DB954),
-        preloadArtwork: true,
-        artDownscaleWidth: 300,
-        artDownscaleHeight: 300,
-      ),
-    );
-  } catch (e) {
-    handler = PureAudioHandler();
-  }
+  final PureAudioHandler handler = await AudioService.init<PureAudioHandler>(
+    builder: () => PureAudioHandler(),
+    config: const AudioServiceConfig(
+      androidNotificationChannelId: 'com.puremusic.audio',
+      androidNotificationChannelName: 'PureMusic',
+      androidNotificationOngoing: true,
+      androidStopForegroundOnPause: true,
+      notificationColor: Color(0xFF1DB954),
+      preloadArtwork: true,
+      artDownscaleWidth: 300,
+      artDownscaleHeight: 300,
+    ),
+  ).catchError((e) {
+    debugPrint('AudioService init error: $e');
+    return PureAudioHandler();
+  });
 
   runApp(
     ProviderScope(
