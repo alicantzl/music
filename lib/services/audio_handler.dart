@@ -87,6 +87,7 @@ class PureAudioHandler extends BaseAudioHandler
     _currentLoadingId = song.id;
     final loadingId = song.id;
 
+    debugPrint('*** Starting Load Sequence for: ${song.title} ***');
     await _player.stop();
 
     mediaItem.add(_songToItem(song));
@@ -97,15 +98,12 @@ class PureAudioHandler extends BaseAudioHandler
 
     try {
       // 1. Check Offline / Downloads
-      if (song.isDownloaded && song.localPath != null) {
-        final file = File(song.localPath!);
-        if (await file.exists()) {
-          debugPrint('Playing from model local path');
-          if (_currentLoadingId != loadingId) return;
-          await _player.setFilePath(song.localPath!);
-          await _player.play();
-          return;
-        }
+      if (song.isDownloaded && song.localPath != null && await File(song.localPath!).exists()) {
+        debugPrint('--- Playing from local path: ${song.localPath} ---');
+        if (_currentLoadingId != loadingId) return;
+        await _player.setFilePath(song.localPath!);
+        await _player.play();
+        return;
       }
 
       final downloadsBox = Hive.box('downloads');
@@ -113,7 +111,7 @@ class PureAudioHandler extends BaseAudioHandler
         final data = Map<String, dynamic>.from(downloadsBox.get(song.id) as Map);
         final localPath = data['localPath'] as String?;
         if (localPath != null && await File(localPath).exists()) {
-          debugPrint('Playing from permanent download: $localPath');
+          debugPrint('--- Playing from permanent download: $localPath ---');
           if (_currentLoadingId != loadingId) return;
           await _player.setFilePath(localPath);
           await _player.play();
@@ -121,40 +119,38 @@ class PureAudioHandler extends BaseAudioHandler
         }
       }
 
-      // 2. Resolve Stream with Retry Logic
-      debugPrint('Attempting to resolve stream for ${song.title}...');
+      // 2. Resolve Stream
+      debugPrint('--- Resolving stream for ${song.title}... ---');
       ResolvedStream? resolved = await StreamResolver.resolve(
         song.id,
         title: song.title,
         artist: song.artist,
       );
 
-      if (_currentLoadingId != loadingId) return;
-
-      if (resolved == null) {
-        debugPrint('Saavn failed, trying direct YouTube fallback...');
-        // Force a YouTube-only resolution if Saavn failed
-        // We'll trust the fallback inside StreamResolver for now, but let's ensure it works.
+      if (_currentLoadingId != loadingId) {
+        debugPrint('Request cancelled for ${song.id} during resolution');
+        return;
       }
 
-      if (resolved == null) throw Exception('No playable stream found.');
+      if (resolved == null) throw Exception('Stream resolution failed.');
 
       // 3. Set Audio Source
       bool isSaavn = resolved.url != null && (resolved.url!.contains('saavncdn.com') || resolved.url!.contains('jiosaavn'));
       
       if (isSaavn) {
-        debugPrint('Setting direct Saavn source: ${resolved.url}');
+        debugPrint('--- Loading Saavn Stream: ${resolved.url} ---');
+        // Using LockCachingAudioSource back as it's safer for iOS streaming stability
         await _player.setAudioSource(
-          AudioSource.uri(
+          LockCachingAudioSource(
             Uri.parse(resolved.url!),
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+              'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
             },
           ),
           preload: true,
         );
       } else {
-        debugPrint('Setting Proxy source for YouTube fallback');
+        debugPrint('--- Loading YouTube/Fallback via Proxy ---');
         await _player.setAudioSource(CustomProxyAudioSource(
           id: song.id,
           resolved: resolved,
@@ -169,25 +165,15 @@ class PureAudioHandler extends BaseAudioHandler
         mediaItem.add(_songToItem(song).copyWith(duration: realDuration));
       }
 
-      debugPrint('Starting playback...');
-      // Start playing and monitor for 5 seconds. If still loading/buffering, something is wrong.
-      await _player.play();
-      
-      // Auto-recovery: If playback doesn't start in 6 seconds (remains in loading/buffering), 
-      // it might be a 403 or dead link.
-      Future.delayed(const Duration(seconds: 6), () {
-        if (_currentLoadingId == loadingId && 
-            (_player.processingState == ProcessingState.loading || _player.processingState == ProcessingState.buffering) &&
-            _player.position == Duration.zero) {
-           debugPrint('Playback STUCK detected. Trying alternative source...');
-           // Here we could trigger a second attempt with different parameters, 
-           // but for now, let's at least log it and set an error.
-        }
+      debugPrint('--- Source READY. Calling play() for ${song.id}... ---');
+      await _player.play().timeout(const Duration(seconds: 10), onTimeout: () {
+        debugPrint('!!! PLAY TIMEOUT reached for ${song.id} !!!');
       });
+      debugPrint('--- Play command executed successfully for ${song.id} ---');
 
     } catch (e) {
       if (_currentLoadingId == loadingId) {
-        debugPrint('Audio Load Error for ${song.id}: $e');
+        debugPrint('CRITICAL Playback Error for ${song.id}: $e');
         playbackState.add(playbackState.value.copyWith(
           processingState: AudioProcessingState.error,
           playing: false,
