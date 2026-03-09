@@ -40,6 +40,7 @@ class DownloadService {
         await folder.create(recursive: true);
       }
 
+      const ext = 'm4a';
       final cleanTitle = song.title.replaceAll(RegExp(r'[<>:"/\\|?*]'), '').replaceAll(' ', '_');
       final fileName = '${cleanTitle}_${song.id}.$ext';
       final file = File('${folder.path}/$fileName');
