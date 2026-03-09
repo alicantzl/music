@@ -191,12 +191,16 @@ class PureAudioHandler extends BaseAudioHandler
 
       if (resolved.url != null) {
         debugPrint('--- Loading Stream Directly: ${resolved.url} ---');
+        final isYouTube = resolved.url!.contains('googlevideo.com') || resolved.url!.contains('youtube.com');
+        
         await _player.setAudioSource(
           AudioSource.uri(
             Uri.parse(resolved.url!),
-            headers: {
+            headers: isYouTube ? {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
               'Referer': 'https://www.youtube.com/',
+            } : {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             },
           ),
           preload: true,
