@@ -28,28 +28,29 @@ class StreamResolver {
       final manifest = await _yt.videos.streamsClient.getManifest(videoId, ytClients: [
         YoutubeApiClient.ios,
         YoutubeApiClient.android,
-      ]).timeout(const Duration(seconds: 8));
+      ]).timeout(const Duration(seconds: 10));
       
-      // Try audio-only first (lighter)
+      // Since video player works perfectly with muxed streams, we try muxed first for max reliability
+      final muxed = manifest.muxed
+          .where((s) => s.container.name.toLowerCase() == 'mp4')
+          .toList();
+          
+      if (muxed.isNotEmpty) {
+        muxed.sort((a, b) => dataSaver ? a.bitrate.compareTo(b.bitrate) : b.bitrate.compareTo(a.bitrate));
+        debugPrint('[StreamResolver] ✅ YouTube Muxed Stream selected (matching video player logic)');
+        return ResolvedStream(url: muxed.first.url.toString(), info: muxed.first);
+      }
+
+      // Fallback to audio-only if muxed not available
       final audioStreams = manifest.audioOnly
           .where((s) => s.container.name.toLowerCase() == 'mp4')
           .toList();
 
       if (audioStreams.isNotEmpty) {
         audioStreams.sort((a, b) => dataSaver ? a.bitrate.compareTo(b.bitrate) : b.bitrate.compareTo(a.bitrate));
-        debugPrint('[StreamResolver] ✅ YouTube Audio-Only found');
+        debugPrint('[StreamResolver] ✅ YouTube Audio-Only fallback');
         return ResolvedStream(url: audioStreams.first.url.toString(), info: audioStreams.first);
       } 
-      
-      // Fallback to muxed (video+audio) – this is what player_screen uses and it works!
-      final muxed = manifest.muxed
-          .where((s) => s.container.name.toLowerCase() == 'mp4')
-          .toList();
-      if (muxed.isNotEmpty) {
-        muxed.sort((a, b) => dataSaver ? a.bitrate.compareTo(b.bitrate) : b.bitrate.compareTo(a.bitrate));
-        debugPrint('[StreamResolver] ✅ YouTube Muxed Stream fallback');
-        return ResolvedStream(url: muxed.first.url.toString(), info: muxed.first);
-      }
     } catch (e) {
       debugPrint('[StreamResolver] ⚠️ YouTube direct fetch failed: $e');
     }
