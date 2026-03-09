@@ -10,7 +10,8 @@ import '../services/download_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/song_options_sheet.dart';
 import '../widgets/add_to_playlist_sheet.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:video_player/video_player.dart';
+import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 class PlayerScreen extends ConsumerStatefulWidget {
   const PlayerScreen({super.key});
@@ -23,36 +24,52 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   final DownloadService _downloadService = DownloadService();
   bool _isDownloading = false;
 
-  late YoutubePlayerController _ytController;
+  VideoPlayerController? _videoController;
   final PageController _pageController = PageController();
-  bool _isVideoInitialized = false;
+  bool _isVideoLoading = false;
+  String? _loadedVideoId;
 
   @override
   void initState() {
     super.initState();
-    _ytController = YoutubePlayerController(
-      initialVideoId: '',
-      flags: const YoutubePlayerFlags(
-        autoPlay: false,
-        hideControls: true,
-        loop: true,
-      ),
-    );
   }
 
   @override
   void dispose() {
-    _ytController.dispose();
+    _videoController?.dispose();
     _pageController.dispose();
     super.dispose();
   }
 
-  void _loadVideo(String videoId) {
-    if (!_isVideoInitialized) {
-      _ytController.load(videoId);
-      _isVideoInitialized = true;
-    } else {
-      _ytController.load(videoId);
+  Future<void> _loadVideo(String videoId) async {
+    if (_loadedVideoId == videoId) {
+      _videoController?.play();
+      return;
+    }
+    setState(() => _isVideoLoading = true);
+    
+    try {
+      final yt = YoutubeExplode();
+      final manifest = await yt.videos.streamsClient.getManifest(videoId);
+      final streamInfo = manifest.muxed.withHighestBitrate();
+      final url = streamInfo.url.toString();
+      yt.close();
+
+      _videoController?.dispose();
+      _videoController = VideoPlayerController.networkUrl(Uri.parse(url));
+      await _videoController!.initialize();
+      _videoController!.setLooping(true);
+      _loadedVideoId = videoId;
+      
+      if (mounted) {
+        setState(() => _isVideoLoading = false);
+        if (_pageController.hasClients && _pageController.page == 1) {
+          _videoController!.play();
+        }
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isVideoLoading = false);
+      debugPrint("Video load error: \$e");
     }
   }
 
@@ -100,7 +117,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     ref.listen(currentSongProvider, (previous, next) {
       final nextSong = next.value;
       if (nextSong != null && _pageController.hasClients && _pageController.page == 1) {
-        _ytController.load(nextSong.id);
+        _loadVideo(nextSong.id);
       }
     });
 
@@ -201,9 +218,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         if (index == 1) {
                           _loadVideo(song.id);
                           ref.read(playerNotifierProvider.notifier).pause();
-                          _ytController.play();
                         } else {
-                          _ytController.pause();
+                          _videoController?.pause();
                           ref.read(playerNotifierProvider.notifier).play();
                         }
                       },
@@ -227,8 +243,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         ),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: YoutubePlayer(
-                            controller: _ytController,
+                          child: Container(
+                            color: Colors.black,
+                            child: _isVideoLoading
+                                ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                                : (_videoController != null && _videoController!.value.isInitialized)
+                                    ? AspectRatio(
+                                        aspectRatio: _videoController!.value.aspectRatio,
+                                        child: VideoPlayer(_videoController!),
+                                      )
+                                    : const Center(child: Icon(Icons.error, color: Colors.white54)),
                           ),
                         ),
                       ],
