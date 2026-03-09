@@ -40,8 +40,9 @@ class DownloadService {
         await folder.create(recursive: true);
       }
 
-      final ext = 'm4a'; // M4A is the most compatible iOS format
-      final file = File('${folder.path}/${song.id}.$ext');
+      final cleanTitle = song.title.replaceAll(RegExp(r'[<>:"/\\|?*]'), '').replaceAll(' ', '_');
+      final fileName = '${cleanTitle}_${song.id}.$ext';
+      final file = File('${folder.path}/$fileName');
       final sink = file.openWrite();
 
       if (resolved.info != null) {
@@ -66,8 +67,6 @@ class DownloadService {
 
       final fileSize = await file.length();
       debugPrint('Downloaded: ${song.title} (${(fileSize / 1024 / 1024).toStringAsFixed(1)}MB)');
-
-      final fileName = '${song.id}.$ext';
 
       // Create updated song model with local path (only filename to avoid iOS Sandbox issues)
       final downloadedSong = song.copyWith(localPath: fileName);

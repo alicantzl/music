@@ -18,35 +18,35 @@ class StreamResolver {
     debugPrint('[StreamResolver] 🎵 Starting Resolution: $videoId');
     
     // --- EXCLUSIVE SOURCE: YouTube (Direct and Reliable) ---
-    // We removed external fallbacks (JioSaavn) because they often returned incorrect songs
-    // for specific artists/regions, causing the "Wrong Song" issue.
     try {
+      // Speed optimization: Using ONLY iOS client to avoid multiple slow handshakes
+      // and reducing timeout to 5s for snappy feel.
       final manifest = await _yt.videos.streamsClient.getManifest(videoId, ytClients: [
         YoutubeApiClient.ios,
-        YoutubeApiClient.android,
-      ]).timeout(const Duration(seconds: 12));
+      ]).timeout(const Duration(seconds: 5));
       
-      // Since video player works perfectly with muxed streams, we try muxed first for max reliability
-      final muxed = manifest.muxed
-          .where((s) => s.container.name.toLowerCase() == 'mp4')
-          .toList();
-          
-      if (muxed.isNotEmpty) {
-        muxed.sort((a, b) => dataSaver ? a.bitrate.compareTo(b.bitrate) : b.bitrate.compareTo(a.bitrate));
-        debugPrint('[StreamResolver] ✅ YouTube Muxed Stream selected ($videoId)');
-        return ResolvedStream(url: muxed.first.url.toString(), info: muxed.first);
-      }
-
-      // Fallback to audio-only if muxed not available
+      // Speed optimization: Prioritize Audio-Only (M4A) because it's ~80% smaller than Muxed.
+      // This is the key to fixing the 6-7s wait time.
       final audioStreams = manifest.audioOnly
           .where((s) => s.container.name.toLowerCase() == 'mp4')
           .toList();
 
       if (audioStreams.isNotEmpty) {
         audioStreams.sort((a, b) => dataSaver ? a.bitrate.compareTo(b.bitrate) : b.bitrate.compareTo(a.bitrate));
-        debugPrint('[StreamResolver] ✅ YouTube Audio-Only fallback ($videoId)');
+        debugPrint('[StreamResolver] ✅ Fast Audio-Only selected ($videoId)');
         return ResolvedStream(url: audioStreams.first.url.toString(), info: audioStreams.first);
-      } 
+      }
+
+      // Fallback only if no audio-only remains
+      final muxed = manifest.muxed
+          .where((s) => s.container.name.toLowerCase() == 'mp4')
+          .toList();
+
+      if (muxed.isNotEmpty) {
+        muxed.sort((a, b) => dataSaver ? a.bitrate.compareTo(b.bitrate) : b.bitrate.compareTo(a.bitrate));
+        debugPrint('[StreamResolver] ✅ YouTube Muxed Stream fallback ($videoId)');
+        return ResolvedStream(url: muxed.first.url.toString(), info: muxed.first);
+      }
     } catch (e) {
       debugPrint('[StreamResolver] ❌ YouTube direct fetch failed for $videoId: $e');
     }
