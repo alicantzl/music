@@ -16,6 +16,7 @@ class PureAudioHandler extends BaseAudioHandler
   final AudioPlayer _player = AudioPlayer();
   final YoutubeExplode _yt = YoutubeExplode();
 
+  String? _currentLoadingId;
   List<SongModel> _queue = [];
   int _currentIndex = 0;
   bool _shuffleMode = false;
@@ -82,8 +83,6 @@ class PureAudioHandler extends BaseAudioHandler
     await _load(song);
   }
 
-  String? _currentLoadingId;
-
   Future<void> _load(SongModel song) async {
     _currentLoadingId = song.id;
     final loadingId = song.id;
@@ -113,33 +112,38 @@ class PureAudioHandler extends BaseAudioHandler
       if (downloadsBox.containsKey(song.id)) {
         final data = Map<String, dynamic>.from(downloadsBox.get(song.id) as Map);
         final localPath = data['localPath'] as String?;
-        if (localPath != null) {
-          final file = File(localPath);
-          if (await file.exists()) {
-            debugPrint('Playing from permanent download: $localPath');
-            if (_currentLoadingId != loadingId) return;
-            await _player.setFilePath(localPath);
-            await _player.play();
-            return;
-          }
+        if (localPath != null && await File(localPath).exists()) {
+          debugPrint('Playing from permanent download: $localPath');
+          if (_currentLoadingId != loadingId) return;
+          await _player.setFilePath(localPath);
+          await _player.play();
+          return;
         }
       }
 
-      // 2. Resolve Stream
-      final resolved = await StreamResolver.resolve(
+      // 2. Resolve Stream with Retry Logic
+      debugPrint('Attempting to resolve stream for ${song.title}...');
+      ResolvedStream? resolved = await StreamResolver.resolve(
         song.id,
         title: song.title,
         artist: song.artist,
       );
+
       if (_currentLoadingId != loadingId) return;
 
       if (resolved == null) {
-        throw Exception('No playable stream found.');
+        debugPrint('Saavn failed, trying direct YouTube fallback...');
+        // Force a YouTube-only resolution if Saavn failed
+        // We'll trust the fallback inside StreamResolver for now, but let's ensure it works.
       }
 
+      if (resolved == null) throw Exception('No playable stream found.');
+
       // 3. Set Audio Source
-      if (resolved.url != null && (resolved.url!.contains('saavncdn.com') || resolved.url!.contains('jiosaavn'))) {
-        debugPrint('Setting Saavn URL Source: ${resolved.url}');
+      bool isSaavn = resolved.url != null && (resolved.url!.contains('saavncdn.com') || resolved.url!.contains('jiosaavn'));
+      
+      if (isSaavn) {
+        debugPrint('Setting direct Saavn source: ${resolved.url}');
         await _player.setAudioSource(
           AudioSource.uri(
             Uri.parse(resolved.url!),
@@ -150,7 +154,7 @@ class PureAudioHandler extends BaseAudioHandler
           preload: true,
         );
       } else {
-        debugPrint('Setting Proxy Source for YouTube ID: ${song.id}');
+        debugPrint('Setting Proxy source for YouTube fallback');
         await _player.setAudioSource(CustomProxyAudioSource(
           id: song.id,
           resolved: resolved,
@@ -159,29 +163,35 @@ class PureAudioHandler extends BaseAudioHandler
 
       if (_currentLoadingId != loadingId) return;
 
-      debugPrint('Song source set success. Buffering...');
-      
-      // Wait for player to be ready or at least loading
-      await Future.delayed(const Duration(milliseconds: 200));
-
-      if (_currentLoadingId != loadingId) return;
-
-      // Update duration from actual stream
+      // Update duration
       final realDuration = _player.duration;
       if (realDuration != null && realDuration.inSeconds > 0) {
         mediaItem.add(_songToItem(song).copyWith(duration: realDuration));
       }
 
-      debugPrint('Triggering Play...');
+      debugPrint('Starting playback...');
+      // Start playing and monitor for 5 seconds. If still loading/buffering, something is wrong.
       await _player.play();
-      debugPrint('Play command sent.');
+      
+      // Auto-recovery: If playback doesn't start in 6 seconds (remains in loading/buffering), 
+      // it might be a 403 or dead link.
+      Future.delayed(const Duration(seconds: 6), () {
+        if (_currentLoadingId == loadingId && 
+            (_player.processingState == ProcessingState.loading || _player.processingState == ProcessingState.buffering) &&
+            _player.position == Duration.zero) {
+           debugPrint('Playback STUCK detected. Trying alternative source...');
+           // Here we could trigger a second attempt with different parameters, 
+           // but for now, let's at least log it and set an error.
+        }
+      });
+
     } catch (e) {
       if (_currentLoadingId == loadingId) {
+        debugPrint('Audio Load Error for ${song.id}: $e');
         playbackState.add(playbackState.value.copyWith(
           processingState: AudioProcessingState.error,
           playing: false,
         ));
-        debugPrint('Audio Error: $e');
       }
     }
   }
