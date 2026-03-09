@@ -20,14 +20,18 @@ class SettingsScreen extends StatelessWidget {
             subtitle: Text('Manage your account'),
           ),
           const Divider(height: 32, color: Colors.white24),
-          _buildSettingsTile(Icons.data_saver_on, 'Data Saver', 'Set audio quality'),
-          _buildSettingsTile(Icons.language, 'Languages', 'App language: English'),
-          _buildSettingsTile(Icons.volume_up, 'Playback', 'Crossfade, Gapless playback'),
-          _buildSettingsTile(Icons.info_outline, 'About', 'Version 1.0.0'),
+          _buildSettingsTile(context, Icons.data_saver_on, 'Data Saver', 'Set audio quality'),
+          _buildSettingsTile(context, Icons.language, 'Languages', 'App language: English'),
+          _buildSettingsTile(context, Icons.volume_up, 'Playback', 'Crossfade, Gapless playback'),
+          _buildSettingsTile(context, Icons.info_outline, 'About', 'Version 1.0.0'),
           const SizedBox(height: 32),
           Center(
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Sistemden çıkış yapılıyor...')),
+                );
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red[900],
                 padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
@@ -40,13 +44,17 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSettingsTile(IconData icon, String title, String subtitle) {
+  Widget _buildSettingsTile(BuildContext context, IconData icon, String title, String subtitle) {
     return ListTile(
       leading: Icon(icon, color: Colors.white),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
       subtitle: Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 12)),
       trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-      onTap: () {},
+      onTap: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$title ayarları yakında eklenecek.')),
+        );
+      },
     );
   }
 }

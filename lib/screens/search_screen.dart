@@ -107,15 +107,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       itemCount: _categories.length,
       itemBuilder: (context, index) {
         final cat = _categories[index];
-        return Container(
-          decoration: BoxDecoration(
-            color: cat['color'],
-            borderRadius: BorderRadius.circular(8),
-          ),
-          padding: const EdgeInsets.all(12),
-          child: Text(
-            cat['title'],
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+        return InkWell(
+          onTap: () {
+            _controller.text = cat['title'];
+            _onSearchChanged(cat['title']);
+          },
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            decoration: BoxDecoration(
+              color: cat['color'],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            padding: const EdgeInsets.all(12),
+            child: Text(
+              cat['title'],
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+            ),
           ),
         );
       },

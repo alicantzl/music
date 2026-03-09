@@ -35,7 +35,7 @@ class DownloadService {
 
       // Save to permanent app documents directory
       final dir = await getApplicationDocumentsDirectory();
-      final folder = Directory('${dir.path}/music_downloads');
+      final folder = Directory('${dir.path}/download');
       if (!await folder.exists()) {
         await folder.create(recursive: true);
       }

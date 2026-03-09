@@ -134,26 +134,20 @@ class PureAudioHandler extends BaseAudioHandler
 
       if (resolved == null) throw Exception('Stream resolution failed.');
 
-      // 3. Set Audio Source
-      bool isSaavn = resolved.url != null && (resolved.url!.contains('saavncdn.com') || resolved.url!.contains('jiosaavn'));
-      
-      if (isSaavn) {
-        debugPrint('--- Loading Saavn Stream: ${resolved.url} ---');
+      if (resolved.url != null) {
+        debugPrint('--- Loading Stream Directly: ${resolved.url} ---');
         await _player.setAudioSource(
           AudioSource.uri(
             Uri.parse(resolved.url!),
             headers: {
-              'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+              'Referer': 'https://www.youtube.com/',
             },
           ),
           preload: true,
         );
       } else {
-        debugPrint('--- Loading YouTube/Fallback via Proxy ---');
-        await _player.setAudioSource(CustomProxyAudioSource(
-          id: song.id,
-          resolved: resolved,
-        ), preload: true);
+        throw Exception('No valid audio URL available');
       }
 
       if (_currentLoadingId != loadingId) return;
