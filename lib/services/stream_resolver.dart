@@ -26,11 +26,7 @@ class StreamResolver {
     // --- 1. PRIORITY SOURCE: YouTube (Direct and Reliable) ---
     // Since video plays perfectly, we use the same source for audio.
     try {
-      final manifest = await _yt.videos.streamsClient.getManifest(videoId, ytClients: [
-        YoutubeApiClient.android,
-        YoutubeApiClient.ios,
-        YoutubeApiClient.web,
-      ]).timeout(const Duration(seconds: 8));
+      final manifest = await _yt.videos.streamsClient.getManifest(videoId).timeout(const Duration(seconds: 8));
       
       // Prefer audio-only streams to save bandwidth and prevent sync issues
       final audioStreams = manifest.audioOnly

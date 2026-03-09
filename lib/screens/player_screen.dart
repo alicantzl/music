@@ -383,10 +383,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                       ),
                                     )
                                   else
-                                    const Center(
+                                    Center(
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
-                                        children: [
+                                        children: const [
                                           Icon(Icons.play_circle_outline, color: Colors.white54, size: 48),
                                           SizedBox(height: 8),
                                           Text('Swipe to load clip', style: TextStyle(color: Colors.white54, fontSize: 12)),

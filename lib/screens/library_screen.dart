@@ -195,12 +195,12 @@ class _PlaylistsList extends StatelessWidget {
         }
 
         return GridView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 150),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 150),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 0.75,
+            crossAxisSpacing: 20,
+            mainAxisSpacing: 24,
+            childAspectRatio: 0.78,
           ),
           itemCount: playlists.length,
           itemBuilder: (context, index) {
@@ -216,17 +216,18 @@ class _PlaylistsList extends StatelessWidget {
                 showDialog(
                   context: context,
                   builder: (ctx) => AlertDialog(
-                    backgroundColor: const Color(0xFF282828),
-                    title: const Text('Delete Playlist?'),
-                    content: Text('Are you sure you want to delete "${playlist.name}"?'),
+                    backgroundColor: const Color(0xFF1A1A1A),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    title: const Text('Delete Playlist?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    content: Text('Are you sure you want to delete "${playlist.name}"?', style: const TextStyle(color: Colors.white70)),
                     actions: [
-                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: Colors.white60))),
                       TextButton(
                         onPressed: () {
                           Hive.box('playlists').delete(playlist.id);
                           Navigator.pop(ctx);
                         },
-                        child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                        child: const Text('Delete', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),
@@ -238,21 +239,56 @@ class _PlaylistsList extends StatelessWidget {
                   Expanded(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.grey[900],
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))],
-                        image: playlist.imagePath != null
-                            ? DecorationImage(image: FileImage(File(playlist.imagePath!)), fit: BoxFit.cover)
-                            : null,
+                        color: const Color(0xFF1A1A1A),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.4),
+                            blurRadius: 15,
+                            spreadRadius: 2,
+                            offset: const Offset(0, 8),
+                          )
+                        ],
                       ),
-                      child: playlist.imagePath == null
-                          ? Center(child: Icon(Icons.music_note, size: 48, color: Colors.white.withOpacity(0.2)))
-                          : null,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: playlist.imagePath != null
+                            ? Image.file(File(playlist.imagePath!), fit: BoxFit.cover, width: double.infinity, height: double.infinity)
+                            : Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      Colors.grey[850]!,
+                                      Colors.grey[900]!,
+                                    ],
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Icon(Icons.music_note_rounded, size: 54, color: const Color(0xFF1DB954).withOpacity(0.4)),
+                                ),
+                              ),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  Text(playlist.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  Text('${playlist.songs.length} songs', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      playlist.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white, letterSpacing: 0.5),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      '${playlist.songs.length} songs',
+                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13, fontWeight: FontWeight.w500),
+                    ),
+                  ),
                 ],
               ),
             );

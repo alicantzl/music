@@ -9,7 +9,6 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import '../models/song_model.dart';
 import 'stream_resolver.dart';
-import 'proxy_audio_source.dart';
 import 'package:path_provider/path_provider.dart';
 import 'youtube_service.dart';
 import 'dart:math';
@@ -192,15 +191,20 @@ class PureAudioHandler extends BaseAudioHandler
       if (resolved.url != null) {
         debugPrint('--- Loading Stream Directly: ${resolved.url} ---');
         final isYouTube = resolved.url!.contains('googlevideo.com') || resolved.url!.contains('youtube.com');
+        final isIOS = Platform.isIOS;
         
         await _player.setAudioSource(
           AudioSource.uri(
             Uri.parse(resolved.url!),
             headers: isYouTube ? {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+              'User-Agent': isIOS 
+                  ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1'
+                  : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
               'Referer': 'https://www.youtube.com/',
             } : {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'User-Agent': isIOS 
+                  ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1'
+                  : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             },
           ),
           preload: true,
