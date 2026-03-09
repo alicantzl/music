@@ -10,6 +10,7 @@ import '../services/download_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/song_options_sheet.dart';
 import '../widgets/add_to_playlist_sheet.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 class PlayerScreen extends ConsumerStatefulWidget {
   const PlayerScreen({super.key});
@@ -21,6 +22,36 @@ class PlayerScreen extends ConsumerStatefulWidget {
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   final DownloadService _downloadService = DownloadService();
   bool _isDownloading = false;
+
+  late YoutubePlayerController _ytController;
+  final PageController _pageController = PageController();
+  bool _isVideoInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ytController = YoutubePlayerController(
+      params: const YoutubePlayerParams(
+        showControls: false,
+        showFullscreenButton: false,
+        loop: true,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ytController.close();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _loadVideo(String videoId) {
+    if (!_isVideoInitialized) {
+      _ytController.loadVideoById(videoId: videoId);
+      _isVideoInitialized = true;
+    }
+  }
 
   String _fmt(Duration d) {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
@@ -62,6 +93,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final processingState = ref.watch(processingStateProvider);
     final isBuffering = processingState == AudioProcessingState.loading || processingState == AudioProcessingState.buffering;
 
+    // Listen to song changes to update video if we are on the video page
+    ref.listen(currentSongProvider, (previous, next) {
+      final nextSong = next.value;
+      if (nextSong != null && _pageController.hasClients && _pageController.page == 1) {
+        _ytController.loadVideoById(videoId: nextSong.id);
+      }
+    });
+
     if (song == null) {
       return Scaffold(
         body: Center(
@@ -88,8 +127,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final curPos = position.inSeconds.toDouble().clamp(0.0, maxDur);
 
     return Scaffold(
-      body: Stack(
-        fit: StackFit.expand,
+      body: Dismissible(
+        key: const Key('player_dismiss_key'),
+        direction: DismissDirection.down,
+        onDismissed: (_) => context.pop(),
+        child: GestureDetector(
+          onHorizontalDragEnd: (details) {
+            if (details.primaryVelocity == null) return;
+            if (details.primaryVelocity! < -300) {
+              ref.read(playerNotifierProvider.notifier).skipToNext();
+            } else if (details.primaryVelocity! > 300) {
+              ref.read(playerNotifierProvider.notifier).skipToPrevious();
+            }
+          },
+          child: Stack(
+            fit: StackFit.expand,
         children: [
           // Blurred background
           CachedNetworkImage(
@@ -135,26 +187,49 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
                   const SizedBox(height: 32),
 
-                  // Album art with shadow
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 40, spreadRadius: 5)],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: CachedNetworkImage(
-                        imageUrl: song.albumArt,
-                        width: MediaQuery.of(context).size.width - 80,
-                        height: MediaQuery.of(context).size.width - 80,
-                        fit: BoxFit.cover,
-                        errorWidget: (context, url, error) => Container(
-                          width: MediaQuery.of(context).size.width - 80,
-                          height: MediaQuery.of(context).size.width - 80,
-                          color: Colors.grey[900],
-                          child: const Icon(Icons.music_note, size: 80, color: Colors.white38),
+                  // Album art + Video with PageView
+                  SizedBox(
+                    height: MediaQuery.of(context).size.width - 80,
+                    width: MediaQuery.of(context).size.width - 80,
+                    child: PageView(
+                      controller: _pageController,
+                      physics: const BouncingScrollPhysics(),
+                      onPageChanged: (index) {
+                        if (index == 1) {
+                          _loadVideo(song.id);
+                          ref.read(playerNotifierProvider.notifier).pause();
+                          _ytController.playVideo();
+                        } else {
+                          _ytController.pauseVideo();
+                          ref.read(playerNotifierProvider.notifier).play();
+                        }
+                      },
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 40, spreadRadius: 5)],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: CachedNetworkImage(
+                              imageUrl: song.albumArt,
+                              fit: BoxFit.cover,
+                              errorWidget: (context, url, error) => Container(
+                                color: Colors.grey[900],
+                                child: const Icon(Icons.music_note, size: 80, color: Colors.white38),
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: YoutubePlayer(
+                            controller: _ytController,
+                            backgroundColor: Colors.black,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
 
@@ -274,7 +349,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

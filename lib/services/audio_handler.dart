@@ -8,9 +8,12 @@ import 'package:audio_session/audio_session.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../models/song_model.dart';
+import '../models/song_model.dart';
 import 'stream_resolver.dart';
 import 'proxy_audio_source.dart';
 import 'package:path_provider/path_provider.dart';
+import 'youtube_service.dart';
+import 'dart:math';
 
 class PureAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
@@ -64,8 +67,33 @@ class PureAudioHandler extends BaseAudioHandler
         if (_currentIndex < _queue.length - 1) {
           await skipToNext();
         } else {
-          await stop();
+          // If shuffle is on, infinite play completely random song!
+          if (_shuffleMode) {
+            await _playRandomSong();
+          } else {
+            await stop();
+          }
         }
+    }
+  }
+
+  Future<void> _playRandomSong() async {
+    try {
+      final yt = YoutubeService();
+      // Search a random popular artist or word to guarantee "completely different, not similar"
+      final randomQueries = ['latest hit', 'popular song 2024', 'music official', 'top charts usa', 'pop music', 'electronic mix', 'rock classic', 'hip hop top'];
+      final query = randomQueries[Random().nextInt(randomQueries.length)];
+      final songs = await yt.searchSongs(query);
+      if (songs.isNotEmpty) {
+        final randSong = songs[Random().nextInt(songs.length)];
+        _queue.add(randSong);
+        _currentIndex = _queue.length - 1;
+        await _load(randSong);
+      } else {
+        await stop();
+      }
+    } catch (_) {
+      await stop();
     }
   }
 
@@ -223,6 +251,10 @@ class PureAudioHandler extends BaseAudioHandler
   Future<void> skipToNext() async {
     if (_queue.isEmpty) return;
     if (_shuffleMode) {
+      if (_currentIndex == _queue.length - 1) {
+         await _playRandomSong();
+         return;
+      }
       final others = List.generate(_queue.length, (i) => i)..remove(_currentIndex);
       if (others.isNotEmpty) {
         others.shuffle();
