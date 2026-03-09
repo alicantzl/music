@@ -4,7 +4,7 @@ import '../models/song_model.dart';
 class YoutubeService {
   final YoutubeExplode _yt = YoutubeExplode();
 
-  SearchList? _lastSearch;
+  VideoSearchList? _lastSearch;
 
   Future<List<SongModel>> searchSongs(String query) async {
     try {
