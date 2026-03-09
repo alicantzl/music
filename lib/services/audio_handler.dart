@@ -7,6 +7,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/song_model.dart';
+import 'stream_resolver.dart';
 
 class PureAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
@@ -115,37 +116,13 @@ class PureAudioHandler extends BaseAudioHandler
         }
       }
 
-      // Get YouTube stream - ONLY MP4/M4A format (iOS compatible)
-      final manifest = await _yt.videos.streamsClient.getManifest(song.id);
+      // Get robust stream via Piped APIs -> fallback youtube_explode_dart
+      final streamUrl = await StreamResolver.getAudioStreamUrl(song.id);
 
-      // iOS ONLY supports MP4/AAC. WebM/Opus will NOT work.
-      // Priority: audio-only MP4 > muxed MP4
-      final mp4AudioOnly = manifest.audioOnly
-          .where((s) => s.container.name.toLowerCase() == 'mp4')
-          .toList();
-
-      Uri streamUri;
-      if (mp4AudioOnly.isNotEmpty) {
-        // Sort by bitrate, pick highest
-        mp4AudioOnly.sort((a, b) => b.bitrate.compareTo(a.bitrate));
-        streamUri = mp4AudioOnly.first.url;
-        debugPrint('Using MP4 audio-only: ${mp4AudioOnly.first.bitrate}bps');
-      } else if (manifest.muxed.isNotEmpty) {
-        // Fallback: muxed MP4 (has video too but works)
-        final muxed = manifest.muxed
-            .where((s) => s.container.name.toLowerCase() == 'mp4')
-            .toList();
-        if (muxed.isNotEmpty) {
-          muxed.sort((a, b) => b.bitrate.compareTo(a.bitrate));
-          streamUri = muxed.first.url;
-          debugPrint('Using muxed MP4: ${muxed.first.bitrate}bps');
-        } else {
-          streamUri = manifest.muxed.first.url;
-          debugPrint('Using muxed fallback');
-        }
-      } else {
-        throw Exception('No MP4 stream available');
+      if (streamUrl == null) {
+        throw Exception('No playable stream found, ciphers/APIs blocked.');
       }
+      Uri streamUri = Uri.parse(streamUrl);
 
       // Play directly from URL but enforce a standard browser User-Agent
       // iOS AVPlayer's native User-Agent is blocked by YouTube (causes infinite loading)

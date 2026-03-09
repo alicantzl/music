@@ -41,6 +41,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (mounted) {
       setState(() => _isDownloading = false);
       final isSuccess = !result.startsWith('Error');
+      // Let's modify riverpod provider to broadcast errors if needed, but since we are modifying files, let's inject a UI feedback mechanism in MainScreen or PlayerScreen.
+
+      // Wait, doing it in PlayerScreen is easier because we have ScafffoldMessenger context there.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

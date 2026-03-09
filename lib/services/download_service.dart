@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/song_model.dart';
+import 'stream_resolver.dart';
 
 class DownloadService {
   final YoutubeExplode _yt = YoutubeExplode();
@@ -23,21 +24,9 @@ class DownloadService {
 
       debugPrint('Starting download for: ${song.title}');
 
-      final manifest = await _yt.videos.streamsClient.getManifest(song.id);
-      
-      // Use MP4 audio only (iOS compatible, smaller file size)
-      final mp4Streams = manifest.audioOnly
-          .where((s) => s.container.name.toLowerCase() == 'mp4')
-          .toList();
-
-      StreamInfo audioStream;
-      if (mp4Streams.isNotEmpty) {
-        mp4Streams.sort((a, b) => b.bitrate.compareTo(a.bitrate));
-        audioStream = mp4Streams.first;
-      } else if (manifest.audioOnly.isNotEmpty) {
-        audioStream = manifest.audioOnly.withHighestBitrate();
-      } else {
-        return 'Error: No audio stream available';
+      final streamUrl = await StreamResolver.getAudioStreamUrl(song.id);
+      if (streamUrl == null) {
+        return 'Error: No audio stream available (ciphers/APIs blocked)';
       }
 
       // Save to permanent app documents directory
@@ -47,13 +36,23 @@ class DownloadService {
         await folder.create(recursive: true);
       }
 
-      final ext = audioStream.container.name.toLowerCase() == 'mp4' ? 'm4a' : 'webm';
+      final ext = 'm4a'; // M4A is the most compatible iOS format
       final file = File('${folder.path}/${song.id}.$ext');
 
-      // Download the stream
-      final stream = _yt.videos.streamsClient.get(audioStream);
+      // Download the stream using Dart's native HttpClient
+      final client = HttpClient();
+      final request = await client.getUrl(Uri.parse(streamUrl));
+      
+      // Mimic a browser to prevent 403 blocks during download
+      request.headers.add('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36');
+      
+      final response = await request.close();
+      if (response.statusCode != 200) {
+        return 'Error: HTTP ${response.statusCode} during download';
+      }
+
       final sink = file.openWrite();
-      await stream.pipe(sink);
+      await response.pipe(sink);
       await sink.flush();
       await sink.close();
 
