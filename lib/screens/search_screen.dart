@@ -80,7 +80,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
-    if (query.isEmpty) {
+    
+    final trimmedQuery = query.trim();
+    if (trimmedQuery.isEmpty) {
       setState(() {
         _results = [];
         _isLoading = false;
@@ -90,15 +92,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       return;
     }
 
-    setState(() { _isLoading = true; _hasError = false; });
-    _debounce = Timer(const Duration(milliseconds: 500), () async {
-      final currentQuery = query.trim();
-      final songs = await _yt.searchSongs(currentQuery);
-      if (mounted && _controller.text.trim() == currentQuery) {
+    // Immediately show loading and clear results to avoid "Wrong Song" confusion
+    setState(() { 
+      _isLoading = true; 
+      _hasError = false;
+      _results = []; 
+    });
+
+    _debounce = Timer(const Duration(milliseconds: 600), () async {
+      final songs = await _yt.searchSongs(trimmedQuery);
+      if (mounted) {
         setState(() {
           _results = songs;
           _isLoading = false;
-          _hasError = songs.isEmpty && currentQuery.isNotEmpty;
+          _hasError = songs.isEmpty && trimmedQuery.isNotEmpty;
         });
       }
     });
