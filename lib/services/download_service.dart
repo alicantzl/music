@@ -40,19 +40,21 @@ class DownloadService {
       final file = File('${folder.path}/${song.id}.$ext');
       final sink = file.openWrite();
 
-      if (resolved.url != null) {
-        // Download the stream using Dart's native HttpClient
+      if (resolved.info != null) {
+        // Native youtube_explode_dart pipe completely bypasses 403 and automatically handles chunks
+        final stream = _yt.videos.streamsClient.get(resolved.info!);
+        await stream.pipe(sink);
+      } else if (resolved.url != null) {
+        // Fallback to manually getting the URL
         final client = HttpClient();
         final request = await client.getUrl(Uri.parse(resolved.url!));
         request.headers.add('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36');
+        request.headers.add('Referer', 'https://www.youtube.com/');
         final response = await request.close();
         if (response.statusCode != 200) {
           return 'Error: HTTP ${response.statusCode} during download';
         }
         await response.pipe(sink);
-      } else if (resolved.info != null) {
-        final stream = _yt.videos.streamsClient.get(resolved.info!);
-        await stream.pipe(sink);
       }
 
       await sink.flush();

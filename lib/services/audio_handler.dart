@@ -9,6 +9,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/song_model.dart';
 import 'stream_resolver.dart';
+import 'local_proxy_server.dart';
 
 class PureAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
@@ -124,14 +125,14 @@ class PureAudioHandler extends BaseAudioHandler
         throw Exception('No playable stream found, ciphers/APIs blocked.');
       }
 
-      // 100% bypass iOS AVPlayer network blocks by proxying through a local Dart web server.
-      // AVPlayer only sees local HTTP, while Dart Http downloads the real YouTube file.
+      // 100% bypass iOS AVPlayer network blocks by proxying through a local Dart HttpServer.
+      // AVPlayer only sees local HTTP, while Dart Http downloads the real YouTube file without losing redirect headers!
+      await LocalProxyServer.startServer();
+      final proxyUrl = LocalProxyServer.addUrl(song.id, resolved.url!);
+      
       await _player.setAudioSource(LockCachingAudioSource(
-        Uri.parse(resolved.url!),
+        Uri.parse(proxyUrl),
         cacheFile: File('${(await getApplicationDocumentsDirectory()).path}/music_cache_${song.id}.m4a'),
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-        },
       ));
 
       // Update duration from actual stream
