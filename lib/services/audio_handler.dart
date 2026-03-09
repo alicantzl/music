@@ -138,24 +138,31 @@ class PureAudioHandler extends BaseAudioHandler
       }
 
       // 3. Set Audio Source
-      if (resolved.url != null && resolved.url!.contains('saavncdn.com')) {
-        debugPrint('Using LockCachingAudioSource for JioSaavn');
-        // LockCachingAudioSource is much more stable on iOS as it handles buffering/caching smoothly
+      if (resolved.url != null && (resolved.url!.contains('saavncdn.com') || resolved.url!.contains('jiosaavn'))) {
+        debugPrint('Setting Saavn URL Source: ${resolved.url}');
         await _player.setAudioSource(
-          LockCachingAudioSource(
+          AudioSource.uri(
             Uri.parse(resolved.url!),
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
             },
           ),
+          preload: true,
         );
       } else {
-        debugPrint('Using Proxy Interceptor for YouTube/Fallback');
+        debugPrint('Setting Proxy Source for YouTube ID: ${song.id}');
         await _player.setAudioSource(CustomProxyAudioSource(
           id: song.id,
           resolved: resolved,
-        ));
+        ), preload: true);
       }
+
+      if (_currentLoadingId != loadingId) return;
+
+      debugPrint('Song source set success. Buffering...');
+      
+      // Wait for player to be ready or at least loading
+      await Future.delayed(const Duration(milliseconds: 200));
 
       if (_currentLoadingId != loadingId) return;
 
@@ -165,7 +172,9 @@ class PureAudioHandler extends BaseAudioHandler
         mediaItem.add(_songToItem(song).copyWith(duration: realDuration));
       }
 
+      debugPrint('Triggering Play...');
       await _player.play();
+      debugPrint('Play command sent.');
     } catch (e) {
       if (_currentLoadingId == loadingId) {
         playbackState.add(playbackState.value.copyWith(
