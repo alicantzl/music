@@ -41,9 +41,9 @@ class StreamResolver {
     }
 
     final query = Uri.encodeComponent('$searchTitle $searchArtist');
-      
-      debugPrint('JioSaavn Search Query: $searchTitle $searchArtist');
-      
+    debugPrint('JioSaavn Search Query: $searchTitle $searchArtist');
+    
+    try {
       final client = HttpClient();
       client.connectionTimeout = const Duration(seconds: 4);
       
@@ -83,7 +83,7 @@ class StreamResolver {
           
           if (dres.statusCode == 200) {
             final dbody = await dres.transform(utf8.decoder).join();
-            final ddata = json.decode(dbody);
+            final ddata = json.decode(body);
             final list = ddata['data'] as List;
             final dlist = list.first['downloadUrl'] as List;
             final url = dlist.last['link'].toString();
@@ -95,11 +95,10 @@ class StreamResolver {
         }
       }
     } catch (e) {
-      debugPrint('Failed to fetch YouTube metadata: $e');
+      debugPrint('Overall JioSaavn search failure: $e');
     }
 
     // 2. Fallback to youtube_explode_dart stream extraction
-    // This rarely works on mobile anymore due to YouTube's strict anti-bot 403s!
     debugPrint('Falling back to youtube_explode_dart direct stream...');
     try {
       final manifest = await _yt.videos.streamsClient.getManifest(videoId, ytClients: [
