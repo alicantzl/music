@@ -21,26 +21,38 @@ class CustomProxyAudioSource extends StreamAudioSource {
     final url = resolved.url ?? resolved.info?.url.toString();
     if (url == null) throw Exception('No URL provided');
     
-    final request = await _client.getUrl(Uri.parse(url));
-    
-    // Always provide a User-Agent that YouTube likes
-    request.headers.add('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36');
-    request.headers.add('Referer', 'https://www.youtube.com/');
-    
     // YouTube blocks Android requests without Range headers
     final rangeStart = start ?? 0;
     final rangeEnd = end != null ? '$end' : '';
-    request.headers.add('Range', 'bytes=$rangeStart-$rangeEnd');
-    
-    final response = await request.close();
-    
+
+    final response = await _client.getUrl(Uri.parse(url)).then((req) {
+      // Always provide a User-Agent that YouTube likes
+      req.headers.add('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36');
+      req.headers.add('Referer', 'https://www.youtube.com/');
+      req.headers.add('Range', 'bytes=$rangeStart-$rangeEnd');
+      return req.close();
+    });
+
     if (response.statusCode >= 400) {
-      debugPrint('Proxy Error: HTTP \${response.statusCode}');
-      throw Exception('HTTP \${response.statusCode}');
+      debugPrint('Proxy Error: HTTP ${response.statusCode}');
+      throw Exception('HTTP ${response.statusCode}');
     }
 
+    int? totalLength = resolved.info?.size.totalBytes;
+    if (totalLength == null) {
+      final contentRange = response.headers.value('content-range');
+      if (contentRange != null) {
+        // format: bytes start-end/total
+        final totalStr = contentRange.split('/').last;
+        totalLength = int.tryParse(totalStr);
+      }
+    }
+    
+    // If still null, use contentLength as fallback (might be wrong for 206 but it's all we have)
+    totalLength ??= response.contentLength >= 0 ? response.contentLength : null;
+
     return StreamAudioResponse(
-      sourceLength: resolved.info?.size.totalBytes ?? response.contentLength,
+      sourceLength: totalLength,
       contentLength: response.contentLength >= 0 ? response.contentLength : null,
       offset: rangeStart,
       stream: response,

@@ -46,6 +46,7 @@ class PureAudioHandler extends BaseAudioHandler
       androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
       androidWillPauseWhenDucked: true,
     ));
+    await session.setActive(true);
   }
 
   Future<void> _onComplete() async {
@@ -81,7 +82,12 @@ class PureAudioHandler extends BaseAudioHandler
     await _load(song);
   }
 
+  String? _currentLoadingId;
+
   Future<void> _load(SongModel song) async {
+    _currentLoadingId = song.id;
+    final loadingId = song.id;
+
     await _player.stop();
 
     mediaItem.add(_songToItem(song));
@@ -91,18 +97,18 @@ class PureAudioHandler extends BaseAudioHandler
     ));
 
     try {
-      // First check: song model says it's downloaded
+      // 1. Check Offline / Downloads
       if (song.isDownloaded && song.localPath != null) {
         final file = File(song.localPath!);
         if (await file.exists()) {
           debugPrint('Playing from model local path');
+          if (_currentLoadingId != loadingId) return;
           await _player.setFilePath(song.localPath!);
           await _player.play();
           return;
         }
       }
 
-      // Second check: Hive downloads box (user pressed download button before)
       final downloadsBox = Hive.box('downloads');
       if (downloadsBox.containsKey(song.id)) {
         final data = Map<String, dynamic>.from(downloadsBox.get(song.id) as Map);
@@ -111,6 +117,7 @@ class PureAudioHandler extends BaseAudioHandler
           final file = File(localPath);
           if (await file.exists()) {
             debugPrint('Playing from permanent download: $localPath');
+            if (_currentLoadingId != loadingId) return;
             await _player.setFilePath(localPath);
             await _player.play();
             return;
@@ -118,21 +125,39 @@ class PureAudioHandler extends BaseAudioHandler
         }
       }
 
-      // Get robust stream via Piped APIs -> fallback youtube_explode_dart
-      final resolved = await StreamResolver.resolve(song.id);
+      // 2. Resolve Stream
+      final resolved = await StreamResolver.resolve(
+        song.id,
+        title: song.title,
+        artist: song.artist,
+      );
+      if (_currentLoadingId != loadingId) return;
 
       if (resolved == null) {
-        throw Exception('No playable stream found, ciphers/APIs blocked.');
+        throw Exception('No playable stream found.');
       }
 
-      // Use a custom StreamAudioSource that acts as an interceptor. 
-      // It catches the AVPlayer request locally and forcefully queries the YouTube backend
-      // with the Android User-Agent AND proper Range headers. This permanently defeats 
-      // the mysterious HTTP 403 Forbidden iOS blocks that stop music videos from loading!
-      await _player.setAudioSource(CustomProxyAudioSource(
-        id: song.id,
-        resolved: resolved,
-      ));
+      // 3. Set Audio Source
+      if (resolved.url != null && resolved.url!.contains('saavncdn.com')) {
+        debugPrint('Using LockCachingAudioSource for JioSaavn');
+        // LockCachingAudioSource is much more stable on iOS as it handles buffering/caching smoothly
+        await _player.setAudioSource(
+          LockCachingAudioSource(
+            Uri.parse(resolved.url!),
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+            },
+          ),
+        );
+      } else {
+        debugPrint('Using Proxy Interceptor for YouTube/Fallback');
+        await _player.setAudioSource(CustomProxyAudioSource(
+          id: song.id,
+          resolved: resolved,
+        ));
+      }
+
+      if (_currentLoadingId != loadingId) return;
 
       // Update duration from actual stream
       final realDuration = _player.duration;
@@ -142,11 +167,13 @@ class PureAudioHandler extends BaseAudioHandler
 
       await _player.play();
     } catch (e) {
-      playbackState.add(playbackState.value.copyWith(
-        processingState: AudioProcessingState.error,
-        playing: false,
-      ));
-      debugPrint('Audio Error: $e');
+      if (_currentLoadingId == loadingId) {
+        playbackState.add(playbackState.value.copyWith(
+          processingState: AudioProcessingState.error,
+          playing: false,
+        ));
+        debugPrint('Audio Error: $e');
+      }
     }
   }
 

@@ -24,7 +24,11 @@ class DownloadService {
 
       debugPrint('Starting download for: ${song.title}');
 
-      final resolved = await StreamResolver.resolve(song.id);
+      final resolved = await StreamResolver.resolve(
+        song.id,
+        title: song.title,
+        artist: song.artist,
+      );
       if (resolved == null) {
         return 'Error: No audio stream available (ciphers/APIs blocked)';
       }

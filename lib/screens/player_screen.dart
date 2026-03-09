@@ -157,6 +157,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   ),
 
                   const SizedBox(height: 32),
+                  
+                  if (processingState == AudioProcessingState.error)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(color: Colors.red.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.error_outline, color: Colors.redAccent),
+                          SizedBox(width: 12),
+                          Expanded(child: Text('Playback error. YouTube or Mirror blocked the request.', style: TextStyle(color: Colors.redAccent, fontSize: 13))),
+                        ],
+                      ),
+                    ),
+
+                  const SizedBox(height: 32),
 
                   // Song info + like
                   Row(

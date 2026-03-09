@@ -19,63 +19,79 @@ class StreamResolver {
     return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
-  static Future<ResolvedStream?> resolve(String videoId) async {
+  static Future<ResolvedStream?> resolve(String videoId, {String? title, String? artist}) async {
     debugPrint('Resolving YouTube video: $videoId');
     
-    // 1. Fetch metadata to extract title and author
-    try {
-      final video = await _yt.videos.get(VideoId(videoId));
-      final title = _cleanString(video.title);
-      final author = _cleanString(video.author.replaceAll(RegExp(r'VEVO', caseSensitive: false), ''));
-      final query = Uri.encodeComponent('$title $author');
+    String searchTitle = title ?? '';
+    String searchArtist = artist ?? '';
+
+    // 1. Fetch metadata if not provided
+    if (searchTitle.isEmpty) {
+      try {
+        final video = await _yt.videos.get(VideoId(videoId));
+        searchTitle = _cleanString(video.title);
+        searchArtist = _cleanString(video.author.replaceAll(RegExp(r'VEVO', caseSensitive: false), ''));
+      } catch (e) {
+        debugPrint('Failed to fetch YouTube metadata: $e');
+        return null; // Can't search Saavn without title
+      }
+    } else {
+      searchTitle = _cleanString(searchTitle);
+      searchArtist = _cleanString(searchArtist.replaceAll(RegExp(r'VEVO', caseSensitive: false), ''));
+    }
+
+    final query = Uri.encodeComponent('$searchTitle $searchArtist');
       
-      debugPrint('JioSaavn Search Query: $title $author');
+      debugPrint('JioSaavn Search Query: $searchTitle $searchArtist');
       
       final client = HttpClient();
       client.connectionTimeout = const Duration(seconds: 4);
       
-      // Use verified JioSaavn API mirrors
+      // Use verified JioSaavn API mirrors in parallel for faster resolution
       final mirrors = [
         'https://jiosaavn-api-privatecvc2.vercel.app',
         'https://music-api.up.railway.app',
         'https://jiosaavn-api-v3.vercel.app',
       ];
       
-      for (var mirror in mirrors) {
+      final results_saavn = await Future.wait(mirrors.map((mirror) async {
         try {
           final sreq = await client.getUrl(Uri.parse('$mirror/search/songs?query=$query'));
           sreq.headers.add('User-Agent', 'Mozilla/5.0');
-          final sres = await sreq.close().timeout(const Duration(seconds: 5));
+          final sres = await sreq.close().timeout(const Duration(seconds: 4));
           
           if (sres.statusCode == 200) {
             final body = await sres.transform(utf8.decoder).join();
             final data = json.decode(body);
             final results = data['data']['results'] as List;
-            
-            if (results.isNotEmpty) {
-              final saavnId = results.first['id'];
-              final name = results.first['name'];
-              debugPrint('JioSaavn Match found: $name (ID: $saavnId)');
-              
-              final dreq = await client.getUrl(Uri.parse('$mirror/songs?id=$saavnId'));
-              dreq.headers.add('User-Agent', 'Mozilla/5.0');
-              final dres = await dreq.close().timeout(const Duration(seconds: 5));
-              
-              if (dres.statusCode == 200) {
-                final dbody = await dres.transform(utf8.decoder).join();
-                final ddata = json.decode(dbody);
-                final list = ddata['data'] as List;
-                final dlist = list.first['downloadUrl'] as List;
-                
-                // prefer 320kbps (last item usually)
-                final url = dlist.last['link'].toString();
-                debugPrint('Resolved High-Quality Audio URL from JioSaavn!');
-                return ResolvedStream(url: url);
-              }
-            }
+            if (results.isNotEmpty) return {'mirror': mirror, 'id': results.first['id']};
+          }
+        } catch (_) {}
+        return null;
+      }));
+
+      final firstMatch = results_saavn.firstWhere((r) => r != null, orElse: () => null);
+      
+      if (firstMatch != null) {
+        final mirror = firstMatch['mirror'];
+        final saavnId = firstMatch['id'];
+        
+        try {
+          final dreq = await client.getUrl(Uri.parse('$mirror/songs?id=$saavnId'));
+          dreq.headers.add('User-Agent', 'Mozilla/5.0');
+          final dres = await dreq.close().timeout(const Duration(seconds: 4));
+          
+          if (dres.statusCode == 200) {
+            final dbody = await dres.transform(utf8.decoder).join();
+            final ddata = json.decode(dbody);
+            final list = ddata['data'] as List;
+            final dlist = list.first['downloadUrl'] as List;
+            final url = dlist.last['link'].toString();
+            debugPrint('Resolved High-Quality Audio URL from JioSaavn!');
+            return ResolvedStream(url: url);
           }
         } catch (e) {
-          debugPrint('JioSaavn Mirror $mirror failed: $e');
+          debugPrint('Saavn detail fetch failed: $e');
         }
       }
     } catch (e) {
