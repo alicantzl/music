@@ -19,7 +19,7 @@ class StreamResolver {
     return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
-  static Future<ResolvedStream?> resolve(String videoId, {String? title, String? artist}) async {
+  static Future<ResolvedStream?> resolve(String videoId, {String? title, String? artist, bool dataSaver = false}) async {
     debugPrint('[StreamResolver] Resolving: $videoId (title=$title, artist=$artist)');
     
     String searchTitle = title ?? '';
@@ -93,8 +93,8 @@ class StreamResolver {
             final ddata = json.decode(dbody);
             final list = ddata['data'] as List;
             final dlist = list.first['downloadUrl'] as List;
-            final url = dlist.last['link'].toString();
-            debugPrint('[StreamResolver] ✅ GOT SAAVN URL: $url');
+            final url = dataSaver ? dlist.first['link'].toString() : dlist.last['link'].toString();
+            debugPrint('[StreamResolver] ✅ GOT SAAVN URL: $url (DataSaver: $dataSaver)');
             client.close();
             return ResolvedStream(url: url);
           } else {
@@ -125,16 +125,16 @@ class StreamResolver {
           .toList();
 
       if (mp4AudioOnly.isNotEmpty) {
-        mp4AudioOnly.sort((a, b) => b.bitrate.compareTo(a.bitrate));
-        debugPrint('[StreamResolver] ✅ YouTube audio-only stream found');
+        mp4AudioOnly.sort((a, b) => dataSaver ? a.bitrate.compareTo(b.bitrate) : b.bitrate.compareTo(a.bitrate));
+        debugPrint('[StreamResolver] ✅ YouTube audio-only stream found (DataSaver: $dataSaver)');
         return ResolvedStream(url: mp4AudioOnly.first.url.toString(), info: mp4AudioOnly.first);
       } else if (manifest.muxed.isNotEmpty) {
         final muxed = manifest.muxed
             .where((s) => s.container.name.toLowerCase() == 'mp4')
             .toList();
         if (muxed.isNotEmpty) {
-          muxed.sort((a, b) => b.bitrate.compareTo(a.bitrate));
-          debugPrint('[StreamResolver] ✅ YouTube muxed stream found');
+          muxed.sort((a, b) => dataSaver ? a.bitrate.compareTo(b.bitrate) : b.bitrate.compareTo(a.bitrate));
+          debugPrint('[StreamResolver] ✅ YouTube muxed stream found (DataSaver: $dataSaver)');
           return ResolvedStream(url: muxed.first.url.toString(), info: muxed.first);
         }
       }

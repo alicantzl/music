@@ -10,6 +10,7 @@ import 'models/playlist_model.dart';
 import 'services/audio_handler.dart';
 import 'providers/audio_handler_provider.dart';
 import 'navigation/app_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -77,6 +78,7 @@ class PureMusicApp extends StatelessWidget {
           primary: Color(0xFF1DB954),
           surface: Color(0xFF121212),
         ),
+        textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
       ),
       routerConfig: AppRouter.router,
     );

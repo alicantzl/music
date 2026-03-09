@@ -22,6 +22,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   List<SongModel> _results = [];
   bool _isLoading = false;
   bool _isFetchingMore = false;
+  bool _hasError = false;
 
   final List<Map<String, dynamic>> _categories = [
     {'title': 'Podcasts', 'color': Colors.redAccent},
@@ -66,17 +67,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         _results = [];
         _isLoading = false;
         _isFetchingMore = false;
+        _hasError = false;
       });
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() { _isLoading = true; _hasError = false; });
     _debounce = Timer(const Duration(milliseconds: 500), () async {
-      final songs = await _yt.searchSongs(query);
-      if (mounted) {
+      final currentQuery = query.trim();
+      final songs = await _yt.searchSongs(currentQuery);
+      if (mounted && _controller.text.trim() == currentQuery) {
         setState(() {
           _results = songs;
           _isLoading = false;
+          _hasError = songs.isEmpty && currentQuery.isNotEmpty;
         });
       }
     });
@@ -113,9 +117,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator(color: Color(0xFF1DB954)))
-                  : _controller.text.isEmpty
-                      ? _buildBrowseAll()
-                      : _buildSearchResults(),
+                  : _hasError && _controller.text.isNotEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.search_off, size: 64, color: Colors.grey[700]),
+                              const SizedBox(height: 16),
+                              const Text('No reliable results found or you went offline.', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                            ],
+                          ),
+                        )
+                      : _controller.text.isEmpty
+                          ? _buildBrowseAll()
+                          : _buildSearchResults(),
             ),
           ],
         ),

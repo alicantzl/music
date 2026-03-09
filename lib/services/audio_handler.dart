@@ -144,11 +144,15 @@ class PureAudioHandler extends BaseAudioHandler
       }
 
       // 2. Resolve Stream
-      debugPrint('--- Resolving stream for ${song.title}... ---');
+      final settingsBox = Hive.box('settings');
+      final bool ds = settingsBox.get('dataSaver', defaultValue: false);
+
+      debugPrint('--- Resolving stream for ${song.title}... (DataSaver: $ds) ---');
       ResolvedStream? resolved = await StreamResolver.resolve(
         song.id,
         title: song.title,
         artist: song.artist,
+        dataSaver: ds,
       );
 
       if (_currentLoadingId != loadingId) {
