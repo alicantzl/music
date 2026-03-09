@@ -4,9 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
-import 'package:youtube_explode_dart/youtube_explode_dart.dart';
+
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:path_provider/path_provider.dart';
+
 import '../models/song_model.dart';
 import 'stream_resolver.dart';
 import 'proxy_audio_source.dart';
@@ -14,7 +14,7 @@ import 'proxy_audio_source.dart';
 class PureAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
   final AudioPlayer _player = AudioPlayer();
-  final YoutubeExplode _yt = YoutubeExplode();
+
 
   String? _currentLoadingId;
   List<SongModel> _queue = [];

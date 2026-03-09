@@ -20,108 +20,129 @@ class StreamResolver {
   }
 
   static Future<ResolvedStream?> resolve(String videoId, {String? title, String? artist}) async {
-    debugPrint('Resolving YouTube video: $videoId');
+    debugPrint('[StreamResolver] Resolving: $videoId (title=$title, artist=$artist)');
     
     String searchTitle = title ?? '';
     String searchArtist = artist ?? '';
 
-    // 1. Fetch metadata if not provided
+    // 1. Fetch metadata from YouTube if not provided
     if (searchTitle.isEmpty) {
       try {
         final video = await _yt.videos.get(VideoId(videoId));
         searchTitle = _cleanString(video.title);
         searchArtist = _cleanString(video.author.replaceAll(RegExp(r'VEVO', caseSensitive: false), ''));
       } catch (e) {
-        debugPrint('Failed to fetch YouTube metadata: $e');
-        return null; // Can't search Saavn without title
+        debugPrint('[StreamResolver] YouTube metadata fetch failed: $e');
+        return null;
       }
     } else {
       searchTitle = _cleanString(searchTitle);
       searchArtist = _cleanString(searchArtist.replaceAll(RegExp(r'VEVO', caseSensitive: false), ''));
     }
 
+    // 2. Search JioSaavn mirrors in parallel
     final query = Uri.encodeComponent('$searchTitle $searchArtist');
-    debugPrint('JioSaavn Search Query: $searchTitle $searchArtist');
+    debugPrint('[StreamResolver] JioSaavn search: "$searchTitle $searchArtist"');
     
     try {
       final client = HttpClient();
-      client.connectionTimeout = const Duration(seconds: 4);
+      client.connectionTimeout = const Duration(seconds: 5);
       
-      // Use verified JioSaavn API mirrors in parallel for faster resolution
       final mirrors = [
         'https://jiosaavn-api-privatecvc2.vercel.app',
         'https://music-api.up.railway.app',
         'https://jiosaavn-api-v3.vercel.app',
       ];
       
-      final results_saavn = await Future.wait(mirrors.map((mirror) async {
+      // Search all mirrors in parallel, return first match
+      final searchResults = await Future.wait(mirrors.map((mirror) async {
         try {
           final sreq = await client.getUrl(Uri.parse('$mirror/search/songs?query=$query'));
           sreq.headers.add('User-Agent', 'Mozilla/5.0');
-          final sres = await sreq.close().timeout(const Duration(seconds: 4));
+          final sres = await sreq.close().timeout(const Duration(seconds: 5));
           
           if (sres.statusCode == 200) {
             final body = await sres.transform(utf8.decoder).join();
             final data = json.decode(body);
             final results = data['data']['results'] as List;
-            if (results.isNotEmpty) return {'mirror': mirror, 'id': results.first['id']};
+            if (results.isNotEmpty) {
+              debugPrint('[StreamResolver] Mirror $mirror found: ${results.first['name']}');
+              return {'mirror': mirror, 'id': results.first['id']};
+            }
           }
         } catch (_) {}
         return null;
       }));
 
-      final firstMatch = results_saavn.firstWhere((r) => r != null, orElse: () => null);
+      final firstMatch = searchResults.firstWhere((r) => r != null, orElse: () => null);
       
       if (firstMatch != null) {
         final mirror = firstMatch['mirror'];
         final saavnId = firstMatch['id'];
+        debugPrint('[StreamResolver] Fetching song detail from $mirror (id=$saavnId)');
         
         try {
           final dreq = await client.getUrl(Uri.parse('$mirror/songs?id=$saavnId'));
           dreq.headers.add('User-Agent', 'Mozilla/5.0');
-          final dres = await dreq.close().timeout(const Duration(seconds: 4));
+          final dres = await dreq.close().timeout(const Duration(seconds: 5));
           
           if (dres.statusCode == 200) {
             final dbody = await dres.transform(utf8.decoder).join();
-            final ddata = json.decode(body);
+            // *** CRITICAL FIX: was json.decode(body) — 'body' was out of scope! ***
+            // Now correctly decoding 'dbody' which is the detail response.
+            final ddata = json.decode(dbody);
             final list = ddata['data'] as List;
             final dlist = list.first['downloadUrl'] as List;
             final url = dlist.last['link'].toString();
-            debugPrint('Resolved High-Quality Audio URL from JioSaavn!');
+            debugPrint('[StreamResolver] ✅ GOT SAAVN URL: $url');
+            client.close();
             return ResolvedStream(url: url);
+          } else {
+            debugPrint('[StreamResolver] Detail fetch HTTP ${dres.statusCode}');
           }
         } catch (e) {
-          debugPrint('Saavn detail fetch failed: $e');
+          debugPrint('[StreamResolver] Saavn detail fetch error: $e');
         }
+      } else {
+        debugPrint('[StreamResolver] No match found on any JioSaavn mirror');
       }
+      
+      client.close();
     } catch (e) {
-      debugPrint('Overall JioSaavn search failure: $e');
+      debugPrint('[StreamResolver] JioSaavn search error: $e');
     }
 
-    // 2. Fallback to youtube_explode_dart stream extraction
-    debugPrint('Falling back to youtube_explode_dart direct stream...');
+    // 3. Fallback: youtube_explode_dart direct stream
+    debugPrint('[StreamResolver] Falling back to YouTube direct stream...');
     try {
       final manifest = await _yt.videos.streamsClient.getManifest(videoId, ytClients: [
         YoutubeApiClient.android,
         YoutubeApiClient.ios,
-      ]).timeout(const Duration(seconds: 5));
+      ]).timeout(const Duration(seconds: 6));
       
-      final mp4AudioOnly = manifest.audioOnly.where((s) => s.container.name.toLowerCase() == 'mp4').toList();
+      final mp4AudioOnly = manifest.audioOnly
+          .where((s) => s.container.name.toLowerCase() == 'mp4')
+          .toList();
 
       if (mp4AudioOnly.isNotEmpty) {
         mp4AudioOnly.sort((a, b) => b.bitrate.compareTo(a.bitrate));
+        debugPrint('[StreamResolver] ✅ YouTube audio-only stream found');
         return ResolvedStream(url: mp4AudioOnly.first.url.toString(), info: mp4AudioOnly.first);
       } else if (manifest.muxed.isNotEmpty) {
-        final muxed = manifest.muxed.where((s) => s.container.name.toLowerCase() == 'mp4').toList();
+        final muxed = manifest.muxed
+            .where((s) => s.container.name.toLowerCase() == 'mp4')
+            .toList();
         if (muxed.isNotEmpty) {
-           muxed.sort((a, b) => b.bitrate.compareTo(a.bitrate));
-           return ResolvedStream(url: muxed.first.url.toString(), info: muxed.first);
+          muxed.sort((a, b) => b.bitrate.compareTo(a.bitrate));
+          debugPrint('[StreamResolver] ✅ YouTube muxed stream found');
+          return ResolvedStream(url: muxed.first.url.toString(), info: muxed.first);
         }
       }
     } catch (e) {
-      debugPrint('youtube_explode_dart fallback failed: $e');
+      debugPrint('[StreamResolver] YouTube fallback failed: $e');
     }
 
+    debugPrint('[StreamResolver] ❌ All sources failed for $videoId');
     return null; 
   }
 }
