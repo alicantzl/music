@@ -6,6 +6,7 @@ import '../models/playlist_model.dart';
 import '../services/download_service.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class SongOptionsSheet extends ConsumerStatefulWidget {
   final SongModel song;
@@ -166,7 +167,10 @@ class _SongOptionsSheetState extends ConsumerState<SongOptionsSheet> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
-                child: Image.network(widget.song.albumArt, width: 60, height: 60, fit: BoxFit.cover),
+                child: CachedNetworkImage(
+                  imageUrl: widget.song.albumArt, width: 60, height: 60, fit: BoxFit.cover,
+                  errorWidget: (context, url, error) => Container(width: 60, height: 60, color: Colors.grey[800], child: const Icon(Icons.music_note, color: Colors.white38)),
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(

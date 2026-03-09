@@ -7,6 +7,8 @@ import 'package:audio_service/audio_service.dart';
 import '../providers/player_provider.dart';
 import '../models/song_model.dart';
 import '../services/download_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/song_options_sheet.dart';
 
 class PlayerScreen extends ConsumerStatefulWidget {
   const PlayerScreen({super.key});
@@ -95,7 +97,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         fit: StackFit.expand,
         children: [
           // Blurred background
-          Image.network(song.albumArt, fit: BoxFit.cover),
+          CachedNetworkImage(
+            imageUrl: song.albumArt, fit: BoxFit.cover,
+            errorWidget: (context, url, error) => Container(color: Colors.grey[900]),
+          ),
           BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
             child: Container(color: Colors.black.withOpacity(0.55)),
@@ -127,7 +132,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           ],
                         ),
                       ),
-                      IconButton(icon: const Icon(Icons.more_vert, color: Colors.white), onPressed: () {}),
+                      IconButton(icon: const Icon(Icons.more_vert, color: Colors.white), onPressed: () {
+                         SongOptionsSheet.show(context, song);
+                      }),
                     ],
                   ),
 
@@ -141,12 +148,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        song.albumArt,
+                      child: CachedNetworkImage(
+                        imageUrl: song.albumArt,
                         width: MediaQuery.of(context).size.width - 80,
                         height: MediaQuery.of(context).size.width - 80,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
+                        errorWidget: (context, url, error) => Container(
                           width: MediaQuery.of(context).size.width - 80,
                           height: MediaQuery.of(context).size.width - 80,
                           color: Colors.grey[900],
@@ -158,17 +165,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
                   const SizedBox(height: 32),
                   
+                  // No huge red error box anymore, just silent failure handling or toast.
                   if (processingState == AudioProcessingState.error)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(color: Colors.red.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.error_outline, color: Colors.redAccent),
-                          SizedBox(width: 12),
-                          Expanded(child: Text('Playback error. YouTube or Mirror blocked the request.', style: TextStyle(color: Colors.redAccent, fontSize: 13))),
-                        ],
-                      ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8.0),
+                      child: Text('Stream unavailable. Could not load.', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
                     ),
 
                   const SizedBox(height: 32),

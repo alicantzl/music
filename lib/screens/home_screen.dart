@@ -4,6 +4,8 @@ import '../models/song_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/player_provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/song_options_sheet.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -147,10 +149,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         clipBehavior: Clip.antiAlias,
                         child: Row(
                           children: [
-                            Image.network(song.albumArt, width: 52, height: 52, fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
-                                    width: 52, height: 52, color: Colors.grey[800],
-                                    child: const Icon(Icons.music_note, size: 20, color: Colors.white38))),
+                            CachedNetworkImage(
+                              imageUrl: song.albumArt, width: 52, height: 52, fit: BoxFit.cover,
+                              errorWidget: (context, url, error) => Container(
+                                  width: 52, height: 52, color: Colors.grey[800],
+                                  child: const Icon(Icons.music_note, size: 20, color: Colors.white38))),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -197,8 +200,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.network(song.albumArt, width: 150, height: 150, fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Container(
+                              child: CachedNetworkImage(
+                                imageUrl: song.albumArt, width: 150, height: 150, fit: BoxFit.cover,
+                                  errorWidget: (context, url, error) => Container(
                                       width: 150, height: 150, color: Colors.grey[900],
                                       child: const Icon(Icons.music_note, size: 40, color: Colors.white24))),
                             ),
@@ -241,8 +245,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             ClipOval(
-                              child: Image.network(song.albumArt, width: 120, height: 120, fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Container(
+                              child: CachedNetworkImage(
+                                imageUrl: song.albumArt, width: 120, height: 120, fit: BoxFit.cover,
+                                  errorWidget: (context, url, error) => Container(
                                       width: 120, height: 120, color: Colors.grey[900],
                                       child: const Icon(Icons.person, size: 40, color: Colors.white24))),
                             ),
@@ -273,14 +278,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   return ListTile(
                     leading: ClipRRect(
                       borderRadius: BorderRadius.circular(4),
-                      child: Image.network(song.albumArt, width: 48, height: 48, fit: BoxFit.cover),
+                      child: CachedNetworkImage(
+                        imageUrl: song.albumArt, width: 48, height: 48, fit: BoxFit.cover,
+                        errorWidget: (context, url, error) => Container(width: 48, height: 48, color: Colors.grey[800], child: const Icon(Icons.music_note, color: Colors.white38)),
+                      ),
                     ),
                     title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w500)),
                     subtitle: Text(song.artist, maxLines: 1, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.play_circle_filled, color: Color(0xFF1DB954), size: 32),
-                      onPressed: () => _play(song),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.play_circle_filled, color: Color(0xFF1DB954), size: 32),
+                          onPressed: () => _play(song),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.more_vert, color: Colors.grey),
+                          onPressed: () => SongOptionsSheet.show(context, song),
+                        ),
+                      ],
                     ),
                     onTap: () => _play(song),
                   );

@@ -1,7 +1,51 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  late Box settingsBox;
+  bool _dataSaver = false;
+  bool _gapless = true;
+  String _language = 'English';
+
+  @override
+  void initState() {
+    super.initState();
+    settingsBox = Hive.box('settings');
+    _dataSaver = settingsBox.get('dataSaver', defaultValue: false);
+    _gapless = settingsBox.get('gapless', defaultValue: true);
+    _language = settingsBox.get('language', defaultValue: 'English');
+  }
+
+  void _toggleDataSaver(bool val) {
+    setState(() => _dataSaver = val);
+    settingsBox.put('dataSaver', val);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(val ? 'Data Saver Enabled' : 'Data Saver Disabled')),
+    );
+  }
+
+  void _toggleGapless(bool val) {
+    setState(() => _gapless = val);
+    settingsBox.put('gapless', val);
+  }
+
+  void _changeLanguage() {
+    final langs = ['English', 'Türkçe', 'Español'];
+    final nextIndex = (langs.indexOf(_language) + 1) % langs.length;
+    final nextLang = langs[nextIndex];
+    setState(() => _language = nextLang);
+    settingsBox.put('language', nextLang);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Language applied: $nextLang')),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,16 +64,45 @@ class SettingsScreen extends StatelessWidget {
             subtitle: Text('Manage your account'),
           ),
           const Divider(height: 32, color: Colors.white24),
-          _buildSettingsTile(context, Icons.data_saver_on, 'Data Saver', 'Set audio quality'),
-          _buildSettingsTile(context, Icons.language, 'Languages', 'App language: English'),
-          _buildSettingsTile(context, Icons.volume_up, 'Playback', 'Crossfade, Gapless playback'),
-          _buildSettingsTile(context, Icons.info_outline, 'About', 'Version 1.0.0'),
+          
+          SwitchListTile(
+            secondary: const Icon(Icons.data_saver_on, color: Colors.white),
+            title: const Text('Data Saver', style: TextStyle(fontWeight: FontWeight.w500)),
+            subtitle: const Text('Set audio quality to low for streaming', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            value: _dataSaver,
+            activeColor: const Color(0xFF1DB954),
+            onChanged: _toggleDataSaver,
+          ),
+          
+          ListTile(
+            leading: const Icon(Icons.language, color: Colors.white),
+            title: const Text('Languages', style: TextStyle(fontWeight: FontWeight.w500)),
+            subtitle: Text('App language: $_language', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+            onTap: _changeLanguage,
+          ),
+
+          SwitchListTile(
+            secondary: const Icon(Icons.volume_up, color: Colors.white),
+            title: const Text('Gapless Playback', style: TextStyle(fontWeight: FontWeight.w500)),
+            subtitle: const Text('Enable seamless transitions', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            value: _gapless,
+            activeColor: const Color(0xFF1DB954),
+            onChanged: _toggleGapless,
+          ),
+
+          const ListTile(
+            leading: Icon(Icons.info_outline, color: Colors.white),
+            title: Text('About', style: TextStyle(fontWeight: FontWeight.w500)),
+            subtitle: Text('Version 1.0.0', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          ),
+
           const SizedBox(height: 32),
           Center(
             child: ElevatedButton(
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Sistemden çıkış yapılıyor...')),
+                  const SnackBar(content: Text('Logging out of your account...')),
                 );
               },
               style: ElevatedButton.styleFrom(
@@ -41,20 +114,6 @@ class SettingsScreen extends StatelessWidget {
           )
         ],
       ),
-    );
-  }
-
-  Widget _buildSettingsTile(BuildContext context, IconData icon, String title, String subtitle) {
-    return ListTile(
-      leading: Icon(icon, color: Colors.white),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
-      subtitle: Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-      trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$title ayarları yakında eklenecek.')),
-        );
-      },
     );
   }
 }

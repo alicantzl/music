@@ -4,6 +4,7 @@ import '../services/youtube_service.dart';
 import '../models/song_model.dart';
 import '../providers/player_provider.dart';
 import '../widgets/song_options_sheet.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -137,7 +138,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         return InkWell(
           onTap: () {
             _controller.text = cat['title'];
-            _onSearchChanged(cat['title']);
+            _onSearchChanged('${cat['title']} music playlist official 2024 hits');
           },
           borderRadius: BorderRadius.circular(8),
           child: Container(
@@ -173,7 +174,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         return ListTile(
           leading: ClipRRect(
             borderRadius: BorderRadius.circular(4),
-            child: Image.network(song.albumArt, width: 50, height: 50, fit: BoxFit.cover),
+            child: CachedNetworkImage(
+              imageUrl: song.albumArt, 
+              width: 50, height: 50, fit: BoxFit.cover,
+              errorWidget: (context, url, error) => Container(width: 50, height: 50, color: Colors.grey[800], child: const Icon(Icons.music_note, color: Colors.white38)),
+            ),
           ),
           title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
           subtitle: Text(song.artist, maxLines: 1),

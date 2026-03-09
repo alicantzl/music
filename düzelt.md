@@ -1,44 +1,25 @@
-🚨 Kritik ve Sistemsel Hatalar (Bug'lar)
-1. iOS Dinamik Klasör (Sandbox) Hatası — En Büyük Tehlike
+ 1. Çevrimdışı (Offline) Kapak Fotoğrafı Hatası
+Hata: Şarkıları internetsiz indirmeyi (
 
-Sorun: 
+Download
+) mükemmel bir şekilde çözdük, şarkılar çevrimdışı harika çalıyor. AMA şarkıların kapak resimleri (albumArt) hala tam link (URL) olarak duruyor. Yani telefonu tam uçak moduna alıp "İndirilenler" sekmesine girdiğinizde, resimler Image.network çağırdığı için kapak resimleri çökecek (gri/kare kalacak).
+Çözüm Planı: Kapak fotoğraflarını internetten her seferinde çekmek yerine cached_network_image paketi ile diskte önbelleklemeli (cache) veya şarkı inince albumArt fotoğrafını da .jpg olarak cihazın local Path'ine (tıpkı müziği sakladığımız klasöre) kaydetmeliyiz.
+🧩 2. Ana Ekran (Home Screen) İşlevsizliği
+Hata: Tüm yetenekli sağ tık / üç nokta menüsünü (
 
-download_service.dart
- dosyasında indirilen müzikleri Hive veritabanına kaydederken dosyanın "mutlak tam yolunu" (Absolute Path) kaydediyoruz (Örn: /var/mobile/Containers/Data/Application/123X-456Y/Documents/download/sarki.m4a).
-Neden Patlar: Apple iOS işletim sisteminde güvenlik (Sandbox) gereği uygulama her güncellendiğinde veya cihaz baştan başlatıldığında 123X-456Y kısmı rastgele değişir.
-Sonuç: Ertesi gün kullanıcı uygulamaya girdiğinde File(song.localPath!).exists() komutu False dönecek, uygulama dosyanın silindiğini sanıp şarkıyı açmayacaktır. Bunu çözmek için veritabanına sadece sarki.m4a şeklindeki dosya adını (relative path) kaydetmeli ve uygulama ne zaman açılırsa o anki getApplicationDocumentsDirectory() dizini ile çalışma zamanında (runtime) birleştirmeliyiz.
-2. Arama & Kütüphane Ekranlarındaki "İşlevsiz" Butonlar
+SongOptionsSheet
+) Arama sayfasına ve Kütüphane sayfasına bağladık ama Ana Ekranı unuttuk. Ana ekranda aşağı kaydırdığınızda çıkan "All Songs" kısmındaki müziklerde sağda sadece "Play" butonu var.
+Sonuç: Kullanıcı ana ekranda gördüğü çok beğendiği bir şarkıyı doğrudan "İndir" veya "Playlist'ime Ekle" diyemiyor. Ana ekrandaki ListTile elemanlarına da bu üç nokta menüsünü eklemek şart.
+🎵 3. Tam Ekran Oynatıcı (Player Screen) Senkronizasyonu
+Eksiklik: Player sayfasında sağ üstte duran üç nokta Icon(Icons.more_vert) tamamen göstermelik; üzerine tıklandığında hiçbir tepki vermiyor onPressed: () {}. 
 
-Sorun: 
-
-search_screen.dart
- ve 
-
-library_screen.dart
- ekranlarını harika listeledik ama şarkıların yanındaki trailing: Icon(Icons.more_vert) (üç nokta) ya da ikonların hiçbir fonksiyonu yok.
-Sonuç: Kullanıcı arama kısmında şarkının yanındaki üç noktaya basıp şarkıyı "Beğenemez", "İndiremez" veya "Oynatma Listesine Ekleyemez". Sadece ana ListTile'a tıklayıp şarkıyı çalabilir. O üç noktayı bir IconButton veya PopupMenuButton içine sarıp fonksiyonlarını BottomModalSheet ile yazmalıyız.
-⚠️ Eksik Özellikler ve Tamamlanmamış Akışlar
-3. "Playlist" (Oynatma Listesi) Akışının İçi Boş
-
-Klasör ve Oynatma listesi butonunu başarıyla oluşturduk ama Şarkı Ekleme mekaniğimiz ortada yok!
-Tıkladığınızda şu mesajı alıyorsunuz: "Playlist açılıyor, detay sayfası yakında!"
-Bir kullanıcı herhangi bir yerde şarkının yanındaki 3 noktaya basıp "Bu playlist'e ekle" (addToPlaylist) diyebilmeli ve Playlistlerin üzerine tıkladığında o listeye ait bir Liste Ekranı (Playlist Details Screen) açılmalı. Şu an böyle bir ekranımız (screens/playlist_detail_screen.dart) bulunmuyor. Kısacası playlistler gösteriş olarak var.
-4. Kütüphane İçerisindeki Liked / Offline Şarkı Yönetimi
-
-Library kısmında bir şarkı Beğenilenler listesine düşüyor ama kullanıcı "Yanlışlıkla beğendim, listeden çıkartayım" diyemiyor. Bir Un-like (Beğenmekten Vazgeçme) ve şarkıyı fiziksel diskten tamamen Silme mantığına ait UI kontrollerimiz şu anda yok.
-5. Sonsuz Kaydırma (Pagination/Infinite Scroll) Eksikliği
-
-
-youtube_service.dart
- sadece tek bir sayfalık arama (search.search(query)) gerçekleştirip bırakıyor.
-Eğer dinleyici bir kategoriyi filtreleyip aşağı kaydırırsa (scroll yaparsa), listenin sonuna geldiğinde yeni şarkıları veya sonraki sayfayı (load more) yükleyemez. Oysa her müzik platformunda aşağı kaydırdıkça yeni şarkılar gelmeye devam eder.
-6. Ayarlar Sayfası Hâlâ İşlevsiz
-
-UI olarak harika bir 
-
-settings_screen.dart
- sayfamız var ama tıkladığımızda hiçbir ayarı fiilen değiştirmiyor, sadece bir uyarı (SnackBar) çıkartıyoruz: "Languages ayarları yakında eklenecek."
-🛠️ Performans ve UX Optimizasyonları
-7. Offline Şarkılarda "İndiriliyor..." Göstergesi Eksikliği
-
-Bir şarkıya "İndir" dediğimizde indirme servisi (Background) üzerinden şarkıyı çekmeye başlıyor ama kullanıcı arayüzünde şarkının o an % kaç indiğini, veya indiriliyor olduğuna dair dönen bir progress bar animasyonumuz (CircularProgressIndicator) yok. Kullanıcı şarkının inip inmediğini o an anlamıyor
+SongOptionsSheet
+ menüsünü buraya da acilen entegre etmeliyiz.
+Eksiklik 2: Oynatma sırasında herhangi bir stream hatası alırsak şu an ekranda acayip garip duran dev bir kırmızı "Kırmızı Kutu" (Playback error) uyarısı var. Bu, uygulamanın Spotify premium hissini bir anda yok eden, basit bir kodlama uyarısı gibi hissettiriyor. Bunu şık bir Toast/SnackBar bildirimine çevirebiliriz.
+🧠 4. Kötü / Aptal Kategori Arama Algoritması (Search Screen)
+Hata: Arama ekranında harika renkli bloklar halinde "Podcasts, Pop, K-Pop, Rock" gibi kategorilerimiz var ve tıklandığında güzelce arama yerine kelimeyi yazıyor. Fakat; tıklandığında sadece "Pop" kelimesini Youtube'da aratıyor. Sonucunda sadece adında Pop yazan garip kısa videolar çıkabiliyor.
+Çözüm: Arkaya akıllı bir Search Query eklemeliyiz. "Pop"a tıklandığında biz kullanıcıya çaktırmadan arkada Pop music playlist official 2024 hits tarzı zenginleştirilmiş bir arama yaparak gerçekten düzgün müzikleri listelemeliyiz. Aksi halde sonuçlar çöp gözükecektir.
+💨 5. Mini Oynatıcı (Mini Player) Görselliği
+Eksiklik: Şarkı çalarken sayfalarda gezinirken altta duran MiniPlayer ekranımıza bir LinearProgressIndicator eklenebilir. Böylece kullanıcı uygulamanın derinliklerinde bile olsa müziğin bitmesine çubuğa bakarak ne kadar kaldığını görebilir. Şu an bu eksik.
+⚙️ 6. Ayarlar Sayfası (Settings Screen)
+Eksiklik: Muazzam bir "Settings" arayüzü çizdik (Koyu tema, kırmızık Log Out butonu, Data Saver vb.) ama hepsi sadece uydurma UI'dan ibaret. Oradaki "Data Saver" gibi ayarların gerçekten müzik çalar kalitesini (Audio Quality) veya uygulamanın bazı verilerini Hive veritabanı üzerinden değiştirecek kadar çalıştırılması gerekiyor.
