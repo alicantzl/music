@@ -15,7 +15,12 @@ class StreamResolver {
   static Future<ResolvedStream?> resolve(String videoId) async {
     debugPrint('Resolving YouTube URL directly with explode_dart...');
     try {
-      final manifest = await _yt.videos.streamsClient.getManifest(videoId);
+      final manifest = await _yt.videos.streamsClient.getManifest(videoId, ytClients: [
+        YoutubeApiClient.ios,
+        YoutubeApiClient.android,
+        YoutubeApiClient.mweb,
+        YoutubeApiClient.tv,
+      ]);
       final mp4AudioOnly = manifest.audioOnly.where((s) => s.container.name.toLowerCase() == 'mp4').toList();
 
       if (mp4AudioOnly.isNotEmpty) {
