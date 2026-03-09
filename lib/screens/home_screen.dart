@@ -112,8 +112,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 26, color: Colors.white),
               ),
               actions: [
-                IconButton(icon: const Icon(Icons.notifications_none_rounded), onPressed: () {}),
-                IconButton(icon: const Icon(Icons.settings_outlined), onPressed: () {}),
+                IconButton(
+                  icon: const Icon(Icons.notifications_none_rounded), 
+                  onPressed: () => context.push('/notifications'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.settings_outlined), 
+                  onPressed: () => context.push('/settings'),
+                ),
               ],
             ),
 

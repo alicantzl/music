@@ -5,6 +5,8 @@ import '../screens/home_screen.dart';
 import '../screens/search_screen.dart';
 import '../screens/library_screen.dart';
 import '../screens/player_screen.dart';
+import '../screens/settings_screen.dart';
+import '../screens/notifications_screen.dart';
 
 class AppRouter {
   static final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -50,6 +52,16 @@ class AppRouter {
             },
           );
         },
+      ),
+      GoRoute(
+        path: '/settings',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: '/notifications',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => const NotificationsScreen(),
       ),
     ],
   );
