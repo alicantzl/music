@@ -19,11 +19,12 @@ class StreamResolver {
     
     // --- EXCLUSIVE SOURCE: YouTube (Direct and Reliable) ---
     try {
-      // Speed optimization: Using ONLY iOS client to avoid multiple slow handshakes
-      // and reducing timeout to 5s for snappy feel.
+      // Restore multiple clients for maximum reliability across regions/VPNs
       final manifest = await _yt.videos.streamsClient.getManifest(videoId, ytClients: [
         YoutubeApiClient.ios,
-      ]).timeout(const Duration(seconds: 5));
+        YoutubeApiClient.android,
+        YoutubeApiClient.web,
+      ]).timeout(const Duration(seconds: 10));
       
       // Speed optimization: Prioritize Audio-Only (M4A) because it's ~80% smaller than Muxed.
       // This is the key to fixing the 6-7s wait time.
