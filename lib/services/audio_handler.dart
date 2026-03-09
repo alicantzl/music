@@ -9,7 +9,6 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/song_model.dart';
 import 'stream_resolver.dart';
-import 'proxy_audio_source.dart';
 
 class PureAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
@@ -126,12 +125,13 @@ class PureAudioHandler extends BaseAudioHandler
       }
 
       // 100% bypass iOS AVPlayer network blocks by proxying through a local Dart web server.
-      // AVPlayer only sees "http://127.0.0.1", while Dart Http downloads the real YouTube file.
-      await _player.setAudioSource(CustomProxyAudioSource(
-        id: song.id,
-        yt: _yt,
-        streamInfo: resolved.info,
-        directUrl: resolved.url,
+      // AVPlayer only sees local HTTP, while Dart Http downloads the real YouTube file.
+      await _player.setAudioSource(LockCachingAudioSource(
+        Uri.parse(resolved.url!),
+        cacheFile: File('${(await getApplicationDocumentsDirectory()).path}/music_cache_${song.id}.m4a'),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+        },
       ));
 
       // Update duration from actual stream
