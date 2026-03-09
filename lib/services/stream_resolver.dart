@@ -23,8 +23,7 @@ class StreamResolver {
       final manifest = await _yt.videos.streamsClient.getManifest(videoId, ytClients: [
         YoutubeApiClient.ios,
         YoutubeApiClient.android,
-        YoutubeApiClient.web,
-      ]).timeout(const Duration(seconds: 10));
+      ]).timeout(const Duration(seconds: 12));
       
       // Speed optimization: Prioritize Audio-Only (M4A) because it's ~80% smaller than Muxed.
       // This is the key to fixing the 6-7s wait time.
