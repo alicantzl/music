@@ -31,14 +31,33 @@ jobs:
           sed -i '' "s/^# platform :ios.*/platform :ios, '14.0'/g" Podfile
           # Speed up build by avoiding network syncs
           echo "ENV['COCOAPODS_DISABLE_STATS'] = 'true'" >> Podfile
+          
+          # Force CocoaPods targets to disable code signing by injecting into the existing post_install block
+          python3 -c "
+          content = open('Podfile', 'r').read()
+          replacement = '''flutter_additional_ios_build_settings(target)
+                target.build_configurations.each do |config|
+                  config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+                  config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
+                end'''
+          content = content.replace('flutter_additional_ios_build_settings(target)', replacement)
+          open('Podfile', 'w').write(content)
+          "
 
       - name: 🍎 Pod install
         run: pod install --repo-update
         working-directory: ios
 
       - name: 🏗️ Build iOS App Folder (Native Flutter Command)
+        env:
+          CODE_SIGNING_ALLOWED: 'NO'
+          CODE_SIGNING_REQUIRED: 'NO'
         # We use 'build ios' instead of 'build ipa' because it's more reliable for unsigned builds.
-        run: flutter build ios --release --no-codesign --obfuscate --split-debug-info=build/app/outputs/symbols
+        run: |
+          # Forcefully disable code signing in the pbxproj file
+          sed -i '' 's/CODE_SIGN_IDENTITY = "iPhone Developer";/CODE_SIGN_IDENTITY = "";/g' ios/Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/"CODE_SIGN_IDENTITY\[sdk=iphoneos\*\]" = "iPhone Developer";/"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";/g' ios/Runner.xcodeproj/project.pbxproj
+          flutter build ios --release --no-codesign --obfuscate --split-debug-info=build/app/outputs/symbols
 
       - name: 📦 Package unsigned IPA (Kesin Çözüm)
         run: |
