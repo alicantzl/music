@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/youtube_service.dart';
 import '../models/song_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../providers/player_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
