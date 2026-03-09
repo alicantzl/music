@@ -7,6 +7,7 @@ import '../providers/player_provider.dart';
 import 'playlist_detail_screen.dart';
 import '../widgets/song_options_sheet.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:io';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -199,8 +200,19 @@ class _PlaylistsList extends StatelessWidget {
               leading: Container(
                 width: 50,
                 height: 50,
-                color: Colors.grey[800],
-                child: const Icon(Icons.music_note, color: Colors.white),
+                decoration: BoxDecoration(
+                  color: Colors.grey[800],
+                  borderRadius: BorderRadius.circular(4),
+                  image: playlist.imagePath != null
+                      ? DecorationImage(
+                          image: FileImage(File(playlist.imagePath!)),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
+                child: playlist.imagePath == null
+                    ? const Icon(Icons.music_note, color: Colors.white)
+                    : null,
               ),
               title: Text(playlist.name, maxLines: 1, style: const TextStyle(fontWeight: FontWeight.w600)),
               subtitle: Text('${playlist.songs.length} songs', style: const TextStyle(color: Colors.grey, fontSize: 13)),

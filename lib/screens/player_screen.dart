@@ -58,13 +58,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _videoController?.dispose();
       _videoController = VideoPlayerController.networkUrl(Uri.parse(url));
       await _videoController!.initialize();
+      await _videoController!.setVolume(0); // Mute the video, AudioService plays the sound
       _videoController!.setLooping(true);
       _loadedVideoId = videoId;
       
       if (mounted) {
         setState(() => _isVideoLoading = false);
         if (_pageController.hasClients && _pageController.page == 1) {
-          _videoController!.play();
+          final isPlaying = ref.read(isPlayingProvider);
+          final currentPos = ref.read(positionProvider).value ?? Duration.zero;
+          _videoController!.seekTo(currentPos);
+          if (isPlaying) {
+            _videoController!.play();
+          }
         }
       }
     } catch (e) {
@@ -112,6 +118,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final position = ref.watch(positionProvider).value ?? Duration.zero;
     final processingState = ref.watch(processingStateProvider);
     final isBuffering = processingState == AudioProcessingState.loading || processingState == AudioProcessingState.buffering;
+
+    // Listen to play/pause state independently
+    ref.listen(isPlayingProvider, (previous, next) {
+      if (_pageController.hasClients && _pageController.page == 1) {
+        if (next) {
+          _videoController?.play();
+        } else {
+          _videoController?.pause();
+        }
+      }
+    });
+
+    // Sync video loosely when drifting occurs (e.g. from user seeking via slider)
+    ref.listen(positionProvider, (previous, next) {
+      final pos = next.value;
+      if (pos != null && _videoController != null && _pageController.hasClients && _pageController.page == 1) {
+         final diff = (pos - _videoController!.value.position).inMilliseconds.abs();
+         if (diff > 1500) { // If drifted more than 1.5 seconds, sync it up
+            _videoController!.seekTo(pos);
+         }
+      }
+    });
 
     // Listen to song changes to update video if we are on the video page
     ref.listen(currentSongProvider, (previous, next) {
@@ -217,10 +245,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       onPageChanged: (index) {
                         if (index == 1) {
                           _loadVideo(song.id);
-                          ref.read(playerNotifierProvider.notifier).pause();
+                          final currentPos = ref.read(positionProvider).value ?? Duration.zero;
+                          _videoController?.seekTo(currentPos);
+                          if (ref.read(isPlayingProvider)) {
+                            _videoController?.play();
+                          }
                         } else {
                           _videoController?.pause();
-                          ref.read(playerNotifierProvider.notifier).play();
                         }
                       },
                       children: [
