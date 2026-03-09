@@ -122,17 +122,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              const TabBar(
-                isScrollable: true,
-                dividerColor: Colors.transparent,
-                indicatorColor: Color(0xFF1DB954),
-                labelStyle: TextStyle(fontWeight: FontWeight.bold),
-                unselectedLabelStyle: TextStyle(fontWeight: FontWeight.normal),
-                tabs: [
-                  Tab(text: 'Playlists'),
-                  Tab(text: 'Liked Songs'),
-                  Tab(text: 'Downloads'),
-                ],
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: TabBar(
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  indicator: BoxDecoration(
+                    color: const Color(0xFF1DB954),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  labelColor: Colors.black,
+                  unselectedLabelColor: Colors.white70,
+                  dividerColor: Colors.transparent,
+                  labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                  unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500),
+                  tabs: const [
+                    Tab(text: 'Playlists'),
+                    Tab(text: 'Liked'),
+                    Tab(text: 'Downloads'),
+                  ],
+                ),
               ),
             ],
           ),
@@ -189,8 +202,8 @@ class _PlaylistsList extends StatelessWidget {
                 color: Colors.grey[800],
                 child: const Icon(Icons.music_note, color: Colors.white),
               ),
-              title: Text(playlist.name, maxLines: 1),
-              subtitle: Text('${playlist.songs.length} songs', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              title: Text(playlist.name, maxLines: 1, style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text('${playlist.songs.length} songs', style: const TextStyle(color: Colors.grey, fontSize: 13)),
               onTap: () {
                 Navigator.push(
                   context,
@@ -317,8 +330,8 @@ class _SongTile extends ConsumerWidget {
           errorWidget: (context, url, error) => Container(width: 50, height: 50, color: Colors.grey[800], child: const Icon(Icons.music_note, color: Colors.white38)),
         ),
       ),
-      title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(song.artist, maxLines: 1),
+      title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+      subtitle: Text(song.artist, maxLines: 1, style: TextStyle(color: Colors.grey[400], fontSize: 12)),
       trailing: IconButton(
         icon: Icon(
           isLiked ? Icons.favorite : (isDownloaded ? Icons.download_done : Icons.more_vert),

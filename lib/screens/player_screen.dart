@@ -9,6 +9,7 @@ import '../models/song_model.dart';
 import '../services/download_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/song_options_sheet.dart';
+import '../widgets/add_to_playlist_sheet.dart';
 
 class PlayerScreen extends ConsumerStatefulWidget {
   const PlayerScreen({super.key});
@@ -27,14 +28,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return '$m:$s';
   }
 
-  void _toggleLike(SongModel song) {
-    final box = Hive.box('liked_songs');
-    if (box.containsKey(song.id)) {
-      box.delete(song.id);
-    } else {
-      box.put(song.id, song.toMap());
-    }
-    setState(() {});
+  void _openPlaylistPopup(SongModel song) {
+    AddToPlaylistSheet.show(context, song);
   }
 
   Future<void> _download(SongModel song) async {
@@ -193,7 +188,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       IconButton(
                         icon: Icon(isLiked ? Icons.favorite : Icons.favorite_border,
                             color: isLiked ? const Color(0xFF1DB954) : Colors.white, size: 28),
-                        onPressed: () => _toggleLike(song),
+                        onPressed: () => _openPlaylistPopup(song),
                       ),
                     ],
                   ),

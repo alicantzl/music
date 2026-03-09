@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -13,6 +15,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _dataSaver = false;
   bool _gapless = true;
   String _language = 'English';
+  String _cacheSizeStr = 'Calculating...';
 
   @override
   void initState() {
@@ -21,6 +24,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _dataSaver = settingsBox.get('dataSaver', defaultValue: false);
     _gapless = settingsBox.get('gapless', defaultValue: true);
     _language = settingsBox.get('language', defaultValue: 'English');
+    _calcCache();
+  }
+
+  Future<void> _calcCache() async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      int totalSize = 0;
+      if (tempDir.existsSync()) {
+        tempDir.listSync(recursive: true, followLinks: false).forEach((entity) {
+          if (entity is File) {
+            totalSize += entity.lengthSync();
+          }
+        });
+      }
+      if (mounted) {
+        setState(() {
+          if (totalSize < 1024) {
+             _cacheSizeStr = '$totalSize B';
+          } else if (totalSize < 1024 * 1024) {
+             _cacheSizeStr = '${(totalSize / 1024).toStringAsFixed(1)} KB';
+          } else if (totalSize < 1024 * 1024 * 1024) {
+             _cacheSizeStr = '${(totalSize / (1024 * 1024)).toStringAsFixed(1)} MB';
+          } else {
+             _cacheSizeStr = '${(totalSize / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+          }
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+         setState(() => _cacheSizeStr = 'Unknown');
+      }
+    }
+  }
+
+  Future<void> _clearCache() async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      if (tempDir.existsSync()) {
+        tempDir.listSync(recursive: true, followLinks: false).forEach((entity) {
+          if (entity is File) {
+             entity.deleteSync();
+          }
+        });
+      }
+      await _calcCache();
+      if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cache cleared successfully!')));
+      }
+    } catch (e) {
+      if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to clear cache.')));
+      }
+    }
   }
 
   void _toggleDataSaver(bool val) {
@@ -95,6 +151,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leading: Icon(Icons.info_outline, color: Colors.white),
             title: Text('About', style: TextStyle(fontWeight: FontWeight.w500)),
             subtitle: Text('Version 1.0.0', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          ),
+
+          const Divider(height: 32, color: Colors.white24),
+
+          ListTile(
+            leading: const Icon(Icons.delete_sweep, color: Colors.white),
+            title: const Text('Clear App Cache', style: TextStyle(fontWeight: FontWeight.w500)),
+            subtitle: Text('Reclaim storage: $_cacheSizeStr space used by images.', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+            onTap: () {
+               showDialog(
+                 context: context,
+                 builder: (ctx) => AlertDialog(
+                   backgroundColor: const Color(0xFF282828),
+                   title: const Text('Clear App Cache?'),
+                   content: Text('Do you want to free up $_cacheSizeStr? This will completely wipe saved images but songs will remain.'),
+                   actions: [
+                     TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: Colors.white))),
+                     TextButton(onPressed: () {
+                       Navigator.pop(ctx);
+                       _clearCache();
+                     }, child: const Text('Clear', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold))),
+                   ]
+                 )
+               );
+            },
           ),
 
           const SizedBox(height: 32),

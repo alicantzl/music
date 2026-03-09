@@ -7,6 +7,7 @@ import '../services/download_service.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/add_to_playlist_sheet.dart';
 
 class SongOptionsSheet extends ConsumerStatefulWidget {
   final SongModel song;
@@ -107,49 +108,8 @@ class _SongOptionsSheetState extends ConsumerState<SongOptionsSheet> {
   }
 
   void _showPlaylists() {
-    Navigator.pop(context); // close current sheet
-    
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF282828),
-      builder: (ctx) {
-        return ValueListenableBuilder<Box>(
-          valueListenable: Hive.box('playlists').listenable(),
-          builder: (context, box, _) {
-            final playlists = box.values.cast<PlaylistModel>().toList();
-
-            if (playlists.isEmpty) {
-              return const Center(child: Text('No playlists. Create one first.'));
-            }
-
-            return ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 20),
-              itemCount: playlists.length,
-              itemBuilder: (context, index) {
-                final playlist = playlists[index];
-                return ListTile(
-                  leading: const Icon(Icons.queue_music, color: Colors.white),
-                  title: Text(playlist.name),
-                  onTap: () {
-                    // Check if already in playlist
-                    final exists = playlist.songs.any((s) => s.id == widget.song.id);
-                    if (exists) {
-                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Already in ${playlist.name}')));
-                    } else {
-                       final updatedList = List<SongModel>.from(playlist.songs)..add(widget.song);
-                       final updatedPlaylist = playlist.copyWith(songs: updatedList);
-                       box.put(playlist.id, updatedPlaylist);
-                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Added to ${playlist.name}')));
-                    }
-                    Navigator.pop(ctx);
-                  },
-                );
-              },
-            );
-          },
-        );
-      },
-    );
+    Navigator.pop(context); 
+    AddToPlaylistSheet.show(context, widget.song);
   }
 
   @override
