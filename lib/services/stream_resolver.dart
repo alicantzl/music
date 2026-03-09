@@ -13,49 +13,51 @@ class StreamResolver {
   static final YoutubeExplode _yt = YoutubeExplode();
   
   static Future<ResolvedStream?> resolve(String videoId, {String? title, String? artist, bool dataSaver = false}) async {
-    debugPrint('[StreamResolver] Resolving: $videoId (title=$title, artist=$artist)');
+    debugPrint('[StreamResolver] 🎵 Starting Resolution: $videoId');
     
-    // 1. YouTube Direct Resolution (Reliable & Fast fallback)
-    // AudioHandler relies on this if anything else fails.
-    Future<ResolvedStream?> resolveYouTube() async {
-      try {
-        final manifest = await _yt.videos.streamsClient.getManifest(videoId, ytClients: [
-          YoutubeApiClient.android,
-          YoutubeApiClient.ios,
-          YoutubeApiClient.web, // Add web client for more reliability
-        ]).timeout(const Duration(seconds: 6));
-        
-        final audioStreams = manifest.audioOnly
-            .where((s) => s.container.name.toLowerCase() == 'mp4')
-            .toList();
+    // --- 1. PRIORITY SOURCE: YouTube (Direct and Reliable) ---
+    // Since video plays perfectly, we use the same source for audio.
+    try {
+      final manifest = await _yt.videos.streamsClient.getManifest(videoId, ytClients: [
+        YoutubeApiClient.android,
+        YoutubeApiClient.ios,
+        YoutubeApiClient.web,
+      ]).timeout(const Duration(seconds: 8));
+      
+      // Prefer audio-only streams to save bandwidth and prevent sync issues
+      final audioStreams = manifest.audioOnly
+          .where((s) => s.container.name.toLowerCase() == 'mp4')
+          .toList();
 
-        if (audioStreams.isNotEmpty) {
-          audioStreams.sort((a, b) => dataSaver ? a.bitrate.compareTo(b.bitrate) : b.bitrate.compareTo(a.bitrate));
-          return ResolvedStream(url: audioStreams.first.url.toString(), info: audioStreams.first);
-        } else if (manifest.muxed.isNotEmpty) {
-          final muxed = manifest.muxed
-              .where((s) => s.container.name.toLowerCase() == 'mp4')
-              .toList();
-          if (muxed.isNotEmpty) {
-            muxed.sort((a, b) => dataSaver ? a.bitrate.compareTo(b.bitrate) : b.bitrate.compareTo(a.bitrate));
-            return ResolvedStream(url: muxed.first.url.toString(), info: muxed.first);
-          }
-        }
-      } catch (e) {
-        debugPrint('[StreamResolver] YouTube direct fetch failed: $e');
+      if (audioStreams.isNotEmpty) {
+        audioStreams.sort((a, b) => dataSaver ? a.bitrate.compareTo(b.bitrate) : b.bitrate.compareTo(a.bitrate));
+        debugPrint('[StreamResolver] ✅ YouTube Audio-Only found');
+        return ResolvedStream(url: audioStreams.first.url.toString(), info: audioStreams.first);
+      } 
+      
+      // Fallback to muxed (video+audio) if no audio-only is available
+      final muxed = manifest.muxed
+          .where((s) => s.container.name.toLowerCase() == 'mp4')
+          .toList();
+      if (muxed.isNotEmpty) {
+        muxed.sort((a, b) => dataSaver ? a.bitrate.compareTo(b.bitrate) : b.bitrate.compareTo(a.bitrate));
+        debugPrint('[StreamResolver] ✅ YouTube Muxed Stream found');
+        return ResolvedStream(url: muxed.first.url.toString(), info: muxed.first);
       }
-      return null;
+    } catch (e) {
+      debugPrint('[StreamResolver] ⚠️ YouTube direct fetch failed: $e');
     }
 
-    // 2. Try JioSaavn ONLY IF we have correct title/artist and it's not a heavy load
+    // --- 2. SECONDARY SOURCE: JioSaavn Mirrors (Fallback for potentially higher bitrate) ---
     if (title != null && title.isNotEmpty) {
+      debugPrint('[StreamResolver] 🔍 Trying JioSaavn fallback for: $title');
       final cleanT = _cleanString(title);
       final cleanA = _cleanString(artist ?? '');
       final query = Uri.encodeComponent('$cleanT $cleanA');
       
       try {
         final client = HttpClient();
-        client.connectionTimeout = const Duration(seconds: 3); // Faster timeout
+        client.connectionTimeout = const Duration(seconds: 3);
         
         final mirrors = [
           'https://jiosaavn-api-privatecvc2.vercel.app',
@@ -74,7 +76,6 @@ class StreamResolver {
               if (results.isNotEmpty) {
                 final first = results.first;
                 final saavnName = (first['name'] as String).toLowerCase();
-                // Strict validation to avoid mismatch
                 if (saavnName.contains(cleanT.split(' ').first.toLowerCase())) {
                    final saavnId = first['id'];
                    final dreq = await client.getUrl(Uri.parse('$mirror/songs?id=$saavnId'));
@@ -86,7 +87,7 @@ class StreamResolver {
                      final durlList = list.first['downloadUrl'] as List;
                      final url = dataSaver ? durlList.first['link'].toString() : durlList.last['link'].toString();
                      client.close();
-                     debugPrint('[StreamResolver] Success via JioSaavn Mirror');
+                     debugPrint('[StreamResolver] ✅ JioSaavn fallback SUCCESS');
                      return ResolvedStream(url: url);
                    }
                 }
@@ -98,9 +99,8 @@ class StreamResolver {
       } catch (_) {}
     }
 
-    // 3. Ultimate Fallback: Direct YouTube Stream
-    debugPrint('[StreamResolver] Mirror failed or skipped, falling back to direct YT...');
-    return await resolveYouTube();
+    debugPrint('[StreamResolver] ❌ All sources failed for $videoId');
+    return null;
   }
 }
 
