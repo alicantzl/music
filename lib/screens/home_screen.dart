@@ -101,6 +101,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         color: const Color(0xFF1DB954),
         onRefresh: _loadAll,
         child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
           slivers: [
             // App Bar
             SliverAppBar(

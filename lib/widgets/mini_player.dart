@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/player_provider.dart';
 
 class MiniPlayer extends ConsumerWidget {
@@ -37,12 +38,15 @@ class MiniPlayer extends ConsumerWidget {
                   const SizedBox(width: 8),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
-                    child: Image.network(
-                      currentSong.albumArt,
+                    child: CachedNetworkImage(
+                      imageUrl: currentSong.albumArt,
                       width: 44,
                       height: 44,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
+                      placeholder: (context, url) => Container(
+                        width: 44, height: 44, color: Colors.grey[800],
+                      ),
+                      errorWidget: (context, url, error) => Container(
                         width: 44, height: 44, color: Colors.grey[800],
                         child: const Icon(Icons.music_note, color: Colors.white38, size: 20),
                       ),

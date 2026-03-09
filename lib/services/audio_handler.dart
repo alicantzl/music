@@ -6,6 +6,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/song_model.dart';
 import 'stream_resolver.dart';
 
@@ -124,11 +125,14 @@ class PureAudioHandler extends BaseAudioHandler
       }
       Uri streamUri = Uri.parse(streamUrl);
 
-      // Play directly from URL but enforce a standard browser User-Agent
-      // iOS AVPlayer's native User-Agent is blocked by YouTube (causes infinite loading)
+      // Play via LockCachingAudioSource! This buffers the audio to disk memory in real-time.
+      // 1. Solves the issue where scrolling causes audio lag 
+      // 2. Makes seeking backward/forward instantaneous 
+      // 3. Emulates how Apple Music natively behaves (iOS loves cached streams)
       await _player.setAudioSource(
-        AudioSource.uri(
+        LockCachingAudioSource(
           streamUri,
+          cacheFile: File('${(await getApplicationDocumentsDirectory()).path}/music_cache_${song.id}.m4a'),
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
           },
