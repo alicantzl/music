@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/youtube_service.dart';
 import '../models/song_model.dart';
 import '../providers/player_provider.dart';
+import '../widgets/song_options_sheet.dart';
 import 'dart:async';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -15,9 +16,11 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final YoutubeService _yt = YoutubeService();
   final TextEditingController _controller = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   Timer? _debounce;
   List<SongModel> _results = [];
   bool _isLoading = false;
+  bool _isFetchingMore = false;
 
   final List<Map<String, dynamic>> _categories = [
     {'title': 'Podcasts', 'color': Colors.redAccent},
@@ -32,12 +35,36 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     {'title': 'K-Pop', 'color': Colors.cyan},
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_scrollListener);
+  }
+
+  void _scrollListener() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200 && !_isLoading && !_isFetchingMore && _results.isNotEmpty) {
+      _fetchMore();
+    }
+  }
+
+  Future<void> _fetchMore() async {
+    setState(() => _isFetchingMore = true);
+    final moreSongs = await _yt.fetchMoreSearchResults();
+    if (mounted) {
+      setState(() {
+        _results.addAll(moreSongs);
+        _isFetchingMore = false;
+      });
+    }
+  }
+
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     if (query.isEmpty) {
       setState(() {
         _results = [];
         _isLoading = false;
+        _isFetchingMore = false;
       });
       return;
     }
@@ -131,9 +158,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _buildSearchResults() {
     return ListView.builder(
+      controller: _scrollController,
       padding: const EdgeInsets.only(bottom: 100),
-      itemCount: _results.length,
+      itemCount: _results.length + (_isFetchingMore ? 1 : 0),
       itemBuilder: (context, index) {
+        if (index == _results.length) {
+          return const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Center(child: CircularProgressIndicator(color: Color(0xFF1DB954))),
+          );
+        }
+        
         final song = _results[index];
         return ListTile(
           leading: ClipRRect(
@@ -142,7 +177,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ),
           title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
           subtitle: Text(song.artist, maxLines: 1),
-          trailing: const Icon(Icons.more_vert),
+          trailing: IconButton(
+            icon: const Icon(Icons.more_vert),
+            onPressed: () {
+               FocusScope.of(context).unfocus();
+               SongOptionsSheet.show(context, song);
+            },
+          ),
           onTap: () {
             FocusScope.of(context).unfocus();
             ref.read(playerNotifierProvider.notifier).playSong(song, queue: _results);
@@ -156,6 +197,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void dispose() {
     _debounce?.cancel();
     _controller.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 }

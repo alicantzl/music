@@ -67,25 +67,40 @@ class DownloadService {
       final fileSize = await file.length();
       debugPrint('Downloaded: ${song.title} (${(fileSize / 1024 / 1024).toStringAsFixed(1)}MB)');
 
-      // Create updated song model with local path
-      final downloadedSong = song.copyWith(localPath: file.path);
+      final fileName = '${song.id}.$ext';
+
+      // Create updated song model with local path (only filename to avoid iOS Sandbox issues)
+      final downloadedSong = song.copyWith(localPath: fileName);
 
       // Save to Hive for persistence
       await box.put(song.id, downloadedSong.toMap());
 
-      return file.path;
+      return fileName;
     } catch (e) {
       debugPrint('Download error: $e');
       return 'Error: $e';
     }
   }
 
-  /// Check if a song is already downloaded and return its local path
-  static String? getLocalPath(String songId) {
+  /// Check if a song is already downloaded and return its absolute local path dynamically
+  static Future<String?> getLocalPath(String songId) async {
     final box = Hive.box('downloads');
     if (box.containsKey(songId)) {
       final data = Map<String, dynamic>.from(box.get(songId) as Map);
-      return data['localPath'] as String?;
+      final pathOrName = data['localPath'] as String?;
+      
+      if (pathOrName != null) {
+        // If it's already an absolute path (legacy downloads before update)
+        if (pathOrName.contains('/')) {
+           final fileName = pathOrName.split('/').last;
+           final dir = await getApplicationDocumentsDirectory();
+           return '${dir.path}/download/$fileName';
+        }
+        
+        // Return constructed dynamically
+        final dir = await getApplicationDocumentsDirectory();
+        return '${dir.path}/download/$pathOrName';
+      }
     }
     return null;
   }

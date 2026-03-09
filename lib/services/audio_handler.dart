@@ -10,6 +10,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../models/song_model.dart';
 import 'stream_resolver.dart';
 import 'proxy_audio_source.dart';
+import 'package:path_provider/path_provider.dart';
 
 class PureAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
@@ -98,24 +99,47 @@ class PureAudioHandler extends BaseAudioHandler
 
     try {
       // 1. Check Offline / Downloads
-      if (song.isDownloaded && song.localPath != null && await File(song.localPath!).exists()) {
-        debugPrint('--- Playing from local path: ${song.localPath} ---');
-        if (_currentLoadingId != loadingId) return;
-        await _player.setFilePath(song.localPath!);
-        await _player.play();
-        return;
+      if (song.isDownloaded && song.localPath != null) {
+        String finalPath = song.localPath!;
+        if (!finalPath.contains('/')) {
+           final dir = await getApplicationDocumentsDirectory();
+           finalPath = '${dir.path}/download/$finalPath';
+        } else {
+           final fileName = finalPath.split('/').last;
+           final dir = await getApplicationDocumentsDirectory();
+           finalPath = '${dir.path}/download/$fileName';
+        }
+        
+        if (await File(finalPath).exists()) {
+          debugPrint('--- Playing from local path: $finalPath ---');
+          if (_currentLoadingId != loadingId) return;
+          await _player.setFilePath(finalPath);
+          await _player.play();
+          return;
+        }
       }
 
       final downloadsBox = Hive.box('downloads');
       if (downloadsBox.containsKey(song.id)) {
         final data = Map<String, dynamic>.from(downloadsBox.get(song.id) as Map);
-        final localPath = data['localPath'] as String?;
-        if (localPath != null && await File(localPath).exists()) {
-          debugPrint('--- Playing from permanent download: $localPath ---');
-          if (_currentLoadingId != loadingId) return;
-          await _player.setFilePath(localPath);
-          await _player.play();
-          return;
+        String? localPath = data['localPath'] as String?;
+        if (localPath != null) {
+          if (!localPath.contains('/')) {
+             final dir = await getApplicationDocumentsDirectory();
+             localPath = '${dir.path}/download/$localPath';
+          } else {
+             final fileName = localPath.split('/').last;
+             final dir = await getApplicationDocumentsDirectory();
+             localPath = '${dir.path}/download/$fileName';
+          }
+
+          if (await File(localPath).exists()) {
+            debugPrint('--- Playing from permanent download: $localPath ---');
+            if (_currentLoadingId != loadingId) return;
+            await _player.setFilePath(localPath);
+            await _player.play();
+            return;
+          }
         }
       }
 

@@ -4,6 +4,8 @@ import '../models/song_model.dart';
 import '../models/playlist_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/player_provider.dart';
+import 'playlist_detail_screen.dart';
+import '../widgets/song_options_sheet.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -189,8 +191,12 @@ class _PlaylistsList extends StatelessWidget {
               title: Text(playlist.name, maxLines: 1),
               subtitle: Text('${playlist.songs.length} songs', style: const TextStyle(color: Colors.grey, fontSize: 12)),
               onTap: () {
-                // Here we can navigate to playlist details screen or show a toast
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Playlist [${playlist.name}] açılıyor, detay sayfası yakında!')));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PlaylistDetailScreen(playlist: playlist),
+                  ),
+                );
               },
               trailing: IconButton(
                 icon: const Icon(Icons.delete, color: Colors.grey),
@@ -309,10 +315,15 @@ class _SongTile extends ConsumerWidget {
       ),
       title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(song.artist, maxLines: 1),
-      trailing: Icon(
-        isLiked ? Icons.favorite : (isDownloaded ? Icons.download_done : Icons.more_vert),
-        color: (isLiked || isDownloaded) ? const Color(0xFF1DB954) : Colors.grey,
-        size: 20,
+      trailing: IconButton(
+        icon: Icon(
+          isLiked ? Icons.favorite : (isDownloaded ? Icons.download_done : Icons.more_vert),
+          color: (isLiked || isDownloaded) ? const Color(0xFF1DB954) : Colors.grey,
+          size: 20,
+        ),
+        onPressed: () {
+           SongOptionsSheet.show(context, song);
+        },
       ),
       onTap: () {
         ref.read(playerNotifierProvider.notifier).playSong(song, queue: queue);

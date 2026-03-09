@@ -4,10 +4,23 @@ import '../models/song_model.dart';
 class YoutubeService {
   final YoutubeExplode _yt = YoutubeExplode();
 
+  SearchList? _lastSearch;
+
   Future<List<SongModel>> searchSongs(String query) async {
     try {
-      final searchResults = await _yt.search.search(query);
-      return searchResults.whereType<Video>().map(_videoToSong).toList();
+      _lastSearch = await _yt.search.search(query);
+      return _lastSearch!.whereType<Video>().map(_videoToSong).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<List<SongModel>> fetchMoreSearchResults() async {
+    try {
+      if (_lastSearch == null) return [];
+      _lastSearch = await _lastSearch!.nextPage();
+      if (_lastSearch == null) return [];
+      return _lastSearch!.whereType<Video>().map(_videoToSong).toList();
     } catch (e) {
       return [];
     }
