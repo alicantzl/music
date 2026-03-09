@@ -24,11 +24,14 @@ class StreamResolver {
     debugPrint('[StreamResolver] 🎵 Starting Resolution: $videoId');
     
     // --- 1. PRIORITY SOURCE: YouTube (Direct and Reliable) ---
-    // Since video plays perfectly, we use the same source for audio.
     try {
-      final manifest = await _yt.videos.streamsClient.getManifest(videoId).timeout(const Duration(seconds: 8));
+      final manifest = await _yt.videos.streamsClient.getManifest(videoId, ytClients: [
+        YoutubeApiClient.ios,
+        YoutubeApiClient.android,
+        YoutubeApiClient.web,
+      ]).timeout(const Duration(seconds: 8));
       
-      // Prefer audio-only streams to save bandwidth and prevent sync issues
+      // Try audio-only first (lighter)
       final audioStreams = manifest.audioOnly
           .where((s) => s.container.name.toLowerCase() == 'mp4')
           .toList();
@@ -39,13 +42,13 @@ class StreamResolver {
         return ResolvedStream(url: audioStreams.first.url.toString(), info: audioStreams.first);
       } 
       
-      // Fallback to muxed (video+audio) if no audio-only is available
+      // Fallback to muxed (video+audio) – this is what player_screen uses and it works!
       final muxed = manifest.muxed
           .where((s) => s.container.name.toLowerCase() == 'mp4')
           .toList();
       if (muxed.isNotEmpty) {
         muxed.sort((a, b) => dataSaver ? a.bitrate.compareTo(b.bitrate) : b.bitrate.compareTo(a.bitrate));
-        debugPrint('[StreamResolver] ✅ YouTube Muxed Stream found');
+        debugPrint('[StreamResolver] ✅ YouTube Muxed Stream fallback');
         return ResolvedStream(url: muxed.first.url.toString(), info: muxed.first);
       }
     } catch (e) {
