@@ -10,7 +10,7 @@ import '../services/download_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/song_options_sheet.dart';
 import '../widgets/add_to_playlist_sheet.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 class PlayerScreen extends ConsumerStatefulWidget {
   const PlayerScreen({super.key});
@@ -31,9 +31,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void initState() {
     super.initState();
     _ytController = YoutubePlayerController(
-      params: const YoutubePlayerParams(
-        showControls: false,
-        showFullscreenButton: false,
+      initialVideoId: '',
+      flags: const YoutubePlayerFlags(
+        autoPlay: false,
+        hideControls: true,
         loop: true,
       ),
     );
@@ -41,15 +42,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   void dispose() {
-    _ytController.close();
+    _ytController.dispose();
     _pageController.dispose();
     super.dispose();
   }
 
   void _loadVideo(String videoId) {
     if (!_isVideoInitialized) {
-      _ytController.loadVideoById(videoId: videoId);
+      _ytController.load(videoId);
       _isVideoInitialized = true;
+    } else {
+      _ytController.load(videoId);
     }
   }
 
@@ -97,7 +100,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     ref.listen(currentSongProvider, (previous, next) {
       final nextSong = next.value;
       if (nextSong != null && _pageController.hasClients && _pageController.page == 1) {
-        _ytController.loadVideoById(videoId: nextSong.id);
+        _ytController.load(nextSong.id);
       }
     });
 
@@ -198,9 +201,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         if (index == 1) {
                           _loadVideo(song.id);
                           ref.read(playerNotifierProvider.notifier).pause();
-                          _ytController.playVideo();
+                          _ytController.play();
                         } else {
-                          _ytController.pauseVideo();
+                          _ytController.pause();
                           ref.read(playerNotifierProvider.notifier).play();
                         }
                       },
@@ -226,7 +229,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           borderRadius: BorderRadius.circular(12),
                           child: YoutubePlayer(
                             controller: _ytController,
-                            backgroundColor: Colors.black,
                           ),
                         ),
                       ],

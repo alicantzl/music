@@ -6,40 +6,134 @@ import '../models/playlist_model.dart';
 import '../providers/player_provider.dart';
 import '../widgets/song_options_sheet.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
-class PlaylistDetailScreen extends ConsumerWidget {
+class PlaylistDetailScreen extends ConsumerStatefulWidget {
   final PlaylistModel playlist;
 
   const PlaylistDetailScreen({Key? key, required this.playlist}) : super(key: key);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 250.0,
-            pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              title: Text(playlist.name, style: const TextStyle(fontWeight: FontWeight.bold, shadows: [Shadow(color: Colors.black, blurRadius: 4)])),
-              background: Container(
-                color: Colors.grey[900],
-                child: Center(
-                  child: Icon(Icons.library_music, size: 80, color: Colors.grey[800]),
+  ConsumerState<PlaylistDetailScreen> createState() => _PlaylistDetailScreenState();
+}
+
+class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
+  Future<void> _editPlaylist(BuildContext context, PlaylistModel currentPlaylist) async {
+    final TextEditingController nameController = TextEditingController(text: currentPlaylist.name);
+    String? newImagePath = currentPlaylist.imagePath;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          backgroundColor: const Color(0xFF282828),
+          title: const Text('Edit Playlist'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GestureDetector(
+                onTap: () async {
+                  final picker = ImagePicker();
+                  final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+                  if (pickedFile != null) {
+                    setStateDialog(() {
+                      newImagePath = pickedFile.path;
+                    });
+                  }
+                },
+                child: Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[800],
+                    borderRadius: BorderRadius.circular(8),
+                    image: newImagePath != null
+                        ? DecorationImage(image: FileImage(File(newImagePath!)), fit: BoxFit.cover)
+                        : null,
+                  ),
+                  child: newImagePath == null
+                      ? const Icon(Icons.add_a_photo, color: Colors.white54, size: 40)
+                      : null,
                 ),
               ),
-            ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  hintText: 'Playlist Name',
+                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF1DB954))),
+                ),
+              ),
+            ],
           ),
-          SliverToBoxAdapter(
-            child: ValueListenableBuilder<Box>(
-              valueListenable: Hive.box('playlists').listenable(),
-              builder: (context, box, _) {
-                final currentPlaylist = box.get(playlist.id) as PlaylistModel?;
-                if (currentPlaylist == null) return const SizedBox();
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1DB954)),
+              onPressed: () {
+                if (nameController.text.trim().isNotEmpty) {
+                  final updatedPlaylist = currentPlaylist.copyWith(
+                    name: nameController.text.trim(),
+                    imagePath: newImagePath,
+                  );
+                  Hive.box('playlists').put(currentPlaylist.id, updatedPlaylist);
+                }
+                Navigator.pop(ctx);
+              },
+              child: const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-                final songs = currentPlaylist.songs;
-                
-                if (songs.isEmpty) {
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<Box>(
+      valueListenable: Hive.box('playlists').listenable(),
+      builder: (context, box, _) {
+        final currentPlaylist = box.get(widget.playlist.id) as PlaylistModel?;
+        if (currentPlaylist == null) {
+          return const Scaffold(body: Center(child: Text("Playlist not found")));
+        }
+
+        return Scaffold(
+          body: CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                expandedHeight: 250.0,
+                pinned: true,
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.edit),
+                    onPressed: () => _editPlaylist(context, currentPlaylist),
+                  ),
+                ],
+                flexibleSpace: FlexibleSpaceBar(
+                  title: Text(currentPlaylist.name, style: const TextStyle(fontWeight: FontWeight.bold, shadows: [Shadow(color: Colors.black, blurRadius: 4)])),
+                  background: currentPlaylist.imagePath != null
+                      ? Image.file(
+                          File(currentPlaylist.imagePath!),
+                          fit: BoxFit.cover,
+                        )
+                      : Container(
+                          color: Colors.grey[900],
+                          child: Center(
+                            child: Icon(Icons.library_music, size: 80, color: Colors.grey[800]),
+                          ),
+                        ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: () {
+                  final songs = currentPlaylist.songs;
+                  
+                  if (songs.isEmpty) {
                   return Padding(
                     padding: const EdgeInsets.only(top: 80),
                     child: Center(
@@ -105,17 +199,21 @@ class PlaylistDetailScreen extends ConsumerWidget {
                           );
                         },
                       ),
+                            ),
+                          );
+                        },
+                      ),
                       onTap: () {
                         ref.read(playerNotifierProvider.notifier).playSong(song, queue: songs);
                       },
                     );
                   },
                 );
-              },
-            ),
+                }(),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
+        );
+      },
   }
 }
