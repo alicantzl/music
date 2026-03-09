@@ -41,14 +41,18 @@ class AppRouter {
           return CustomTransitionPage(
             key: state.pageKey,
             opaque: false,
+            barrierColor: Colors.black.withOpacity(0.5),
             child: const PlayerScreen(),
             transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return SlideTransition(
-                position: animation.drive(
-                  Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
-                      .chain(CurveTween(curve: Curves.easeOutCubic)),
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: animation.drive(
+                    Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+                        .chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
                 ),
-                child: child,
               );
             },
           );

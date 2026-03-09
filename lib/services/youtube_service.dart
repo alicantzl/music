@@ -35,8 +35,11 @@ class YoutubeService {
     }
   }
 
-  Future<List<SongModel>> getTrending() async {
-    return searchSongs('latest hits music video');
+  Future<List<SongModel>> getTrending({String region = 'US'}) async {
+    final query = region == 'TR' 
+        ? 'Türkçe Pop 2024 Liste' 
+        : 'latest hits music video';
+    return searchSongs(query);
   }
 
   SongModel _videoToSong(Video video) {

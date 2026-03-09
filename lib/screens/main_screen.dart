@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../widgets/mini_player.dart';
+import '../providers/settings_provider.dart';
 
 class MainScreen extends ConsumerWidget {
   final Widget child;
@@ -10,6 +11,7 @@ class MainScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(localeProvider);
     return Scaffold(
       body: child,
       bottomSheet: const MiniPlayer(),
@@ -30,21 +32,21 @@ class MainScreen extends ConsumerWidget {
           selectedLabelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
           unselectedLabelStyle: const TextStyle(fontSize: 10),
           elevation: 0,
-          items: const [
+          items: [
             BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home_filled),
-              label: 'Home',
+              icon: const Icon(Icons.home_outlined),
+              activeIcon: const Icon(Icons.home_filled),
+              label: t.home,
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.search_rounded),
-              activeIcon: Icon(Icons.search_rounded, size: 28),
-              label: 'Search',
+              icon: const Icon(Icons.search_rounded),
+              activeIcon: const Icon(Icons.search_rounded, size: 28),
+              label: t.search,
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.library_music_outlined),
-              activeIcon: Icon(Icons.library_music),
-              label: 'Library',
+              icon: const Icon(Icons.library_music_outlined),
+              activeIcon: const Icon(Icons.library_music),
+              label: t.library,
             ),
           ],
         ),

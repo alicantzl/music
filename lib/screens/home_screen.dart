@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../providers/player_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/song_options_sheet.dart';
+import '../providers/settings_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -28,7 +29,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _loadAll() async {
     try {
-      final songs = await _yt.getTrending();
+      final region = ref.read(regionProvider);
+      final songs = await _yt.getTrending(region: region);
       if (mounted) {
         setState(() {
           _trending = songs;
@@ -45,12 +47,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  String _getGreeting() {
+  String _getGreeting(LocalizedStrings s) {
     final hour = DateTime.now().hour;
-    if (hour < 6) return 'Good night';
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+    if (hour < 6) return s.greetingNight;
+    if (hour < 12) return s.greetingMorning;
+    if (hour < 17) return s.greetingAfternoon;
+    return s.greetingEvening;
   }
 
   void _play(SongModel song) {
@@ -59,6 +61,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(localeProvider);
+    
+    // Auto-reload when region changes
+    ref.listen(regionProvider, (previous, next) {
+      if (previous != next) {
+        setState(() => _isLoading = true);
+        _loadAll();
+      }
+    });
+
     if (_isLoading) {
       return const Scaffold(
         body: Center(
@@ -67,38 +79,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             children: [
               CircularProgressIndicator(color: Color(0xFF1DB954)),
               SizedBox(height: 16),
-              Text('Loading music...', style: TextStyle(color: Colors.grey)),
+              Text('...', style: TextStyle(color: Colors.grey)),
             ],
           ),
         ),
       );
     }
-
-    if (_error != null || _trending.isEmpty) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.wifi_off, size: 64, color: Colors.grey[700]),
-              const SizedBox(height: 16),
-              const Text('Could not load music', style: TextStyle(color: Colors.grey, fontSize: 16)),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: () {
-                  setState(() { _isLoading = true; _error = null; });
-                  _loadAll();
-                },
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1DB954)),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
+    
     return Scaffold(
       body: RefreshIndicator(
         color: const Color(0xFF1DB954),
@@ -111,7 +98,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               floating: true,
               backgroundColor: Colors.transparent,
               title: Text(
-                _getGreeting(),
+                _getGreeting(t),
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 26, color: Colors.white),
               ),
               actions: [
@@ -178,7 +165,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 28, 16, 12),
-                child: const Text('🔥 Trending Hits', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                child: Text('🔥 \${t.trendingHits}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
               ),
             ),
             SliverToBoxAdapter(
@@ -224,7 +211,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 28, 16, 12),
-                child: const Text('🎧 Made For You', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                child: Text('🎧 \${t.madeForYou}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
               ),
             ),
             SliverToBoxAdapter(
@@ -268,7 +255,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 28, 16, 12),
-                child: const Text('📋 All Songs', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                child: Text('📋 \${t.allSongs}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
               ),
             ),
             SliverList(

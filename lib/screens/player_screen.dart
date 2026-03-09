@@ -151,6 +151,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     if (song == null) {
       return Scaffold(
+        backgroundColor: Colors.transparent,
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -175,6 +176,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final curPos = position.inSeconds.toDouble().clamp(0.0, maxDur);
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: Dismissible(
         key: const Key('player_dismiss_key'),
         direction: DismissDirection.down,

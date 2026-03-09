@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:io';
+import '../providers/settings_provider.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late Box settingsBox;
   bool _dataSaver = false;
   bool _gapless = true;
-  String _language = 'English';
   String _cacheSizeStr = 'Calculating...';
 
   @override
@@ -23,7 +24,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     settingsBox = Hive.box('settings');
     _dataSaver = settingsBox.get('dataSaver', defaultValue: false);
     _gapless = settingsBox.get('gapless', defaultValue: true);
-    _language = settingsBox.get('language', defaultValue: 'English');
     _calcCache();
   }
 
@@ -70,11 +70,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
       await _calcCache();
       if (mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cache cleared successfully!')));
+         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cache cleared!')));
       }
     } catch (e) {
       if (mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to clear cache.')));
+         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to clear cache.')));
       }
     }
   }
@@ -82,9 +82,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _toggleDataSaver(bool val) {
     setState(() => _dataSaver = val);
     settingsBox.put('dataSaver', val);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(val ? 'Data Saver Enabled' : 'Data Saver Disabled')),
-    );
   }
 
   void _toggleGapless(bool val) {
@@ -93,21 +90,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _changeLanguage() {
-    final langs = ['English', 'Türkçe', 'Español'];
-    final nextIndex = (langs.indexOf(_language) + 1) % langs.length;
-    final nextLang = langs[nextIndex];
-    setState(() => _language = nextLang);
-    settingsBox.put('language', nextLang);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Language applied: $nextLang')),
-    );
+    final currentLang = settingsBox.get('language', defaultValue: 'English');
+    final nextLang = currentLang == 'English' ? 'Türkçe' : 'English';
+    ref.read(localeProvider.notifier).setLanguage(nextLang);
+  }
+
+  void _changeRegion() {
+    final currentRegion = ref.read(regionProvider);
+    final nextRegion = currentRegion == 'US' ? 'TR' : 'US';
+    ref.read(regionProvider.notifier).setRegion(nextRegion);
   }
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(localeProvider);
+    final region = ref.watch(regionProvider);
+    final currentLang = settingsBox.get('language', defaultValue: 'English');
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(t.settings, style: const TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
       ),
       body: ListView(
@@ -123,8 +125,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           
           SwitchListTile(
             secondary: const Icon(Icons.data_saver_on, color: Colors.white),
-            title: const Text('Data Saver', style: TextStyle(fontWeight: FontWeight.w500)),
-            subtitle: const Text('Set audio quality to low for streaming', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            title: Text(t.dataSaver, style: const TextStyle(fontWeight: FontWeight.w500)),
+            subtitle: const Text('Set audio quality to low', style: TextStyle(color: Colors.grey, fontSize: 12)),
             value: _dataSaver,
             activeColor: const Color(0xFF1DB954),
             onChanged: _toggleDataSaver,
@@ -132,70 +134,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
           
           ListTile(
             leading: const Icon(Icons.language, color: Colors.white),
-            title: const Text('Languages', style: TextStyle(fontWeight: FontWeight.w500)),
-            subtitle: Text('App language: $_language', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            title: Text(t.language, style: const TextStyle(fontWeight: FontWeight.w500)),
+            subtitle: Text('$_language: $currentLang', style: const TextStyle(color: Colors.grey, fontSize: 12)),
             trailing: const Icon(Icons.chevron_right, color: Colors.grey),
             onTap: _changeLanguage,
           ),
 
+          ListTile(
+            leading: const Icon(Icons.public, color: Colors.white),
+            title: Text(t.region, style: const TextStyle(fontWeight: FontWeight.w500)),
+            subtitle: Text('$_region: \${region == 'TR' ? 'Türkiye' : 'USA / International'}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+            onTap: _changeRegion,
+          ),
+
           SwitchListTile(
             secondary: const Icon(Icons.volume_up, color: Colors.white),
-            title: const Text('Gapless Playback', style: TextStyle(fontWeight: FontWeight.w500)),
-            subtitle: const Text('Enable seamless transitions', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            title: Text(t.gaplessPlayback, style: const TextStyle(fontWeight: FontWeight.w500)),
+            subtitle: const Text('Seamless transitions', style: TextStyle(color: Colors.grey, fontSize: 12)),
             value: _gapless,
             activeColor: const Color(0xFF1DB954),
             onChanged: _toggleGapless,
           ),
 
-          const ListTile(
-            leading: Icon(Icons.info_outline, color: Colors.white),
-            title: Text('About', style: TextStyle(fontWeight: FontWeight.w500)),
-            subtitle: Text('Version 1.0.0', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          ListTile(
+            leading: const Icon(Icons.info_outline, color: Colors.white),
+            title: Text(t.about, style: const TextStyle(fontWeight: FontWeight.w500)),
+            subtitle: const Text('Version 1.0.0', style: TextStyle(color: Colors.grey, fontSize: 12)),
           ),
 
           const Divider(height: 32, color: Colors.white24),
 
           ListTile(
             leading: const Icon(Icons.delete_sweep, color: Colors.white),
-            title: const Text('Clear App Cache', style: TextStyle(fontWeight: FontWeight.w500)),
-            subtitle: Text('Reclaim storage: $_cacheSizeStr space used by images.', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            title: Text(t.clearCache, style: const TextStyle(fontWeight: FontWeight.w500)),
+            subtitle: Text('Storage used: \$_cacheSizeStr', style: const TextStyle(color: Colors.grey, fontSize: 12)),
             trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-            onTap: () {
-               showDialog(
-                 context: context,
-                 builder: (ctx) => AlertDialog(
-                   backgroundColor: const Color(0xFF282828),
-                   title: const Text('Clear App Cache?'),
-                   content: Text('Do you want to free up $_cacheSizeStr? This will completely wipe saved images but songs will remain.'),
-                   actions: [
-                     TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: Colors.white))),
-                     TextButton(onPressed: () {
-                       Navigator.pop(ctx);
-                       _clearCache();
-                     }, child: const Text('Clear', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold))),
-                   ]
-                 )
-               );
-            },
+            onTap: _clearCache,
           ),
 
           const SizedBox(height: 32),
           Center(
             child: ElevatedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Logging out of your account...')),
-                );
-              },
+              onPressed: () {},
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red[900],
                 padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
               ),
-              child: const Text('Log Out', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: Text(t.logOut, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           )
         ],
       ),
     );
   }
+
+  String get _language => ref.read(localeProvider) == LocalizedStrings.tr ? 'Dil' : 'Language';
+  String get _region => ref.read(localeProvider) == LocalizedStrings.tr ? 'Bölge' : 'Region';
 }
