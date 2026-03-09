@@ -72,6 +72,9 @@ class PlayerNotifier extends Notifier<void> {
     playing ? await _handler.pause() : await _handler.play();
   }
 
+  Future<void> play() async => await _handler.play();
+  Future<void> pause() async => await _handler.pause();
+
   Future<void> seekTo(Duration pos) async => _handler.seek(pos);
   Future<void> skipToNext() async => _handler.skipToNext();
   Future<void> skipToPrevious() async => _handler.skipToPrevious();

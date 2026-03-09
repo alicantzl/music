@@ -181,7 +181,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                   onTap: () {
                                      final updatedSongs = List<SongModel>.from(currentPlaylist.songs)..removeWhere((s) => s.id == song.id);
                                      final updatedPlaylist = currentPlaylist.copyWith(songs: updatedSongs);
-                                     box.put(playlist.id, updatedPlaylist);
+                                     box.put(widget.playlist.id, updatedPlaylist);
                                      Navigator.pop(ctx);
                                   },
                                 ),
@@ -199,10 +199,6 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                           );
                         },
                       ),
-                            ),
-                          );
-                        },
-                      ),
                       onTap: () {
                         ref.read(playerNotifierProvider.notifier).playSong(song, queue: songs);
                       },
@@ -215,5 +211,6 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           ),
         );
       },
+    );
   }
 }

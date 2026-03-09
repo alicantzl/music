@@ -351,7 +351,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
             ),
           ),
-        ),
+        ],
+      ),
+      ),
       ),
     );
   }
