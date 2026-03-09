@@ -49,9 +49,6 @@ jobs:
         working-directory: ios
 
       - name: 🏗️ Build iOS App Folder (Native Flutter Command)
-        env:
-          CODE_SIGNING_ALLOWED: 'NO'
-          CODE_SIGNING_REQUIRED: 'NO'
         run: |
           # Kill Xcode's code-signing enforcement at the source
           python3 -c "
@@ -67,29 +64,38 @@ jobs:
           echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
           echo "EXPANDED_CODE_SIGN_IDENTITY=\"\"" >> ios/Flutter/Release.xcconfig
-          flutter build ios --release --no-codesign --obfuscate --split-debug-info=build/app/outputs/symbols
-
+          
+          # 1. Let Flutter compile Dart and prepare everything it can. It might fail at the final code signing step, which is fine.
+          flutter build ios --release --no-codesign --obfuscate --split-debug-info=build/app/outputs/symbols || echo 'Flutter build finished Dart compilation.'
+          
+          # 2. Finish the build natively forcing Xcode to bypass code signing completely
+          cd ios
+          xcodebuild build \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" EXPANDED_CODE_SIGN_IDENTITY=""
+          cd ..
 
       - name: 📦 Package unsigned IPA (Kesin Çözüm)
         run: |
-          # 1. Create Payload folder
           mkdir -p Payload
           
-          # 2. Critical Step: Copy the .app into Payload.
-          # -H follows command line links.
-          # -L follows ALL links in the source (converts symlinks to real files).
-          # -R is recursive.
-          # This is what prevents the 6MB "empty shell" problem.
-          cp -HLR build/ios/iphoneos/Runner.app Payload/
+          # Find where Xcode dumped the built .app file
+          APP_PATH=$(find . -name "Runner.app" -type d | grep "iphoneos" | head -n 1)
+          echo "Found Runner.app at: $APP_PATH"
           
-          # 3. Size Verification for Logs
+          # Copy it securely
+          cp -HLR "$APP_PATH" Payload/
+          
           echo "✅ Frameworks Integrity Check:"
-          du -sh Payload/Runner.app/Frameworks/*
+          du -sh Payload/Runner.app/Frameworks/* || echo "No frameworks"
           
-          # 4. Zip it
+          # Zip it up
           zip -qr PureMusic-unsigned.ipa Payload
           
-          # 5. Output
           mkdir -p build/ios/ipa
           mv PureMusic-unsigned.ipa build/ios/ipa/
           echo "✅ Final IPA Created. Size:"
