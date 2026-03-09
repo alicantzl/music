@@ -28,7 +28,6 @@ class StreamResolver {
       final manifest = await _yt.videos.streamsClient.getManifest(videoId, ytClients: [
         YoutubeApiClient.ios,
         YoutubeApiClient.android,
-        YoutubeApiClient.web,
       ]).timeout(const Duration(seconds: 8));
       
       // Try audio-only first (lighter)
