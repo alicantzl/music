@@ -9,6 +9,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/song_model.dart';
 import 'stream_resolver.dart';
+import 'proxy_audio_source.dart';
 
 class PureAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
@@ -124,10 +125,13 @@ class PureAudioHandler extends BaseAudioHandler
         throw Exception('No playable stream found, ciphers/APIs blocked.');
       }
 
-      // Stream directly with iOS compliant Youtube URL from StreamResolver.
-      await _player.setAudioSource(LockCachingAudioSource(
-        Uri.parse(resolved.url!),
-        cacheFile: File('${(await getApplicationDocumentsDirectory()).path}/music_cache_${song.id}.m4a'),
+      // Use a custom StreamAudioSource that acts as an interceptor. 
+      // It catches the AVPlayer request locally and forcefully queries the YouTube backend
+      // with the Android User-Agent AND proper Range headers. This permanently defeats 
+      // the mysterious HTTP 403 Forbidden iOS blocks that stop music videos from loading!
+      await _player.setAudioSource(CustomProxyAudioSource(
+        id: song.id,
+        resolved: resolved,
       ));
 
       // Update duration from actual stream
