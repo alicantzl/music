@@ -54,9 +54,10 @@ jobs:
           CODE_SIGNING_REQUIRED: 'NO'
         # We use 'build ios' instead of 'build ipa' because it's more reliable for unsigned builds.
         run: |
-          # Forcefully disable code signing in the pbxproj file
-          sed -i '' 's/CODE_SIGN_IDENTITY = "iPhone Developer";/CODE_SIGN_IDENTITY = "";/g' ios/Runner.xcodeproj/project.pbxproj
-          sed -i '' 's/"CODE_SIGN_IDENTITY\[sdk=iphoneos\*\]" = "iPhone Developer";/"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";/g' ios/Runner.xcodeproj/project.pbxproj
+          # Inject code-signing suppression directly into the Flutter XCConfig
+          echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
+          echo "EXPANDED_CODE_SIGN_IDENTITY=\"\"" >> ios/Flutter/Release.xcconfig
           flutter build ios --release --no-codesign --obfuscate --split-debug-info=build/app/outputs/symbols
 
       - name: 📦 Package unsigned IPA (Kesin Çözüm)
