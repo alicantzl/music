@@ -7,6 +7,7 @@ import '../providers/player_provider.dart';
 import '../widgets/song_options_sheet.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
+import '../providers/settings_provider.dart';
 import 'dart:io';
 
 class PlaylistDetailScreen extends ConsumerStatefulWidget {
@@ -28,7 +29,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setStateDialog) => AlertDialog(
           backgroundColor: const Color(0xFF282828),
-          title: const Text('Edit Playlist'),
+          title: Text(ref.read(localeProvider).editPlaylist),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -60,9 +61,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               const SizedBox(height: 16),
               TextField(
                 controller: nameController,
-                decoration: const InputDecoration(
-                  hintText: 'Playlist Name',
-                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF1DB954))),
+                decoration: InputDecoration(
+                  hintText: ref.read(localeProvider) == LocalizedStrings.tr ? 'Çalma Listesi Adı' : 'Playlist Name',
+                  focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF1DB954))),
                 ),
               ),
             ],
@@ -70,7 +71,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+              child: Text(ref.read(localeProvider).cancel, style: const TextStyle(color: Colors.white70)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1DB954)),
@@ -84,7 +85,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 }
                 Navigator.pop(ctx);
               },
-              child: const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: Text(ref.read(localeProvider).save, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -141,7 +142,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                         children: [
                           Icon(Icons.music_off, size: 64, color: Colors.grey[700]),
                           const SizedBox(height: 16),
-                          const Text('Playlist is empty.', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                          const Text('', style: TextStyle(color: Colors.grey, fontSize: 16)),
                         ],
                       ),
                     ),
@@ -177,7 +178,10 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                               children: [
                                 ListTile(
                                   leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                                  title: const Text('Remove from this Playlist', style: TextStyle(color: Colors.redAccent)),
+                                   title: Text(
+                                     ref.read(localeProvider) == LocalizedStrings.tr ? 'Bu listeden kaldır' : 'Remove from this Playlist',
+                                     style: const TextStyle(color: Colors.redAccent),
+                                   ),
                                   onTap: () {
                                      final updatedSongs = List<SongModel>.from(currentPlaylist.songs)..removeWhere((s) => s.id == song.id);
                                      final updatedPlaylist = currentPlaylist.copyWith(songs: updatedSongs);
@@ -188,7 +192,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                 const Divider(color: Colors.white24, height: 1),
                                 ListTile(
                                   leading: const Icon(Icons.more_horiz),
-                                  title: const Text('More Options'),
+                                   title: Text(ref.read(localeProvider) == LocalizedStrings.tr ? 'Diğer Seçenekler' : 'More Options'),
                                   onTap: () {
                                      Navigator.pop(ctx);
                                      SongOptionsSheet.show(context, song);

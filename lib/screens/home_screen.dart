@@ -85,6 +85,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       );
     }
+
+    if (_error != null || _trending.isEmpty) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.wifi_off, size: 64, color: Colors.grey[700]),
+              const SizedBox(height: 16),
+              Text(
+                t == LocalizedStrings.tr ? 'Müzikler yüklenemedi' : 'Could not load music',
+                style: const TextStyle(color: Colors.grey, fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () {
+                  setState(() { _isLoading = true; _error = null; });
+                  _loadAll();
+                },
+                icon: const Icon(Icons.refresh),
+                label: Text(t == LocalizedStrings.tr ? 'Tekrar Dene' : 'Retry'),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1DB954)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     
     return Scaffold(
       body: RefreshIndicator(

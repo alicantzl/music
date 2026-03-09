@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/youtube_service.dart';
 import '../models/song_model.dart';
 import '../providers/player_provider.dart';
+import '../providers/settings_provider.dart';
 import '../widgets/song_options_sheet.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
@@ -24,18 +25,35 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   bool _isFetchingMore = false;
   bool _hasError = false;
 
-  final List<Map<String, dynamic>> _categories = [
-    {'title': 'Podcasts', 'color': Colors.redAccent},
-    {'title': 'Made For You', 'color': Colors.blueAccent},
-    {'title': 'Charts', 'color': Colors.purpleAccent},
-    {'title': 'New Releases', 'color': Colors.pinkAccent},
-    {'title': 'Discover', 'color': Colors.teal},
-    {'title': 'Radio', 'color': Colors.orangeAccent},
-    {'title': 'Pop', 'color': Colors.greenAccent},
-    {'title': 'Rock', 'color': Colors.indigoAccent},
-    {'title': 'Hip-Hop', 'color': Colors.deepOrangeAccent},
-    {'title': 'K-Pop', 'color': Colors.cyan},
-  ];
+  List<Map<String, dynamic>> get _categories {
+    final region = ref.read(regionProvider);
+    if (region == 'TR') {
+      return [
+        {'title': 'Türkçe Pop', 'color': Colors.pinkAccent},
+        {'title': 'Arabesk', 'color': Colors.deepOrangeAccent},
+        {'title': 'Türkçe Rap', 'color': Colors.indigoAccent},
+        {'title': 'Türkçe Rock', 'color': Colors.teal},
+        {'title': 'Slow Müzik', 'color': Colors.purpleAccent},
+        {'title': 'Remix', 'color': Colors.orangeAccent},
+        {'title': 'Akustik', 'color': Colors.greenAccent},
+        {'title': 'Karadeniz', 'color': Colors.blueAccent},
+        {'title': 'Podcast', 'color': Colors.redAccent},
+        {'title': 'Özgün Müzik', 'color': Colors.cyan},
+      ];
+    }
+    return [
+      {'title': 'Podcasts', 'color': Colors.redAccent},
+      {'title': 'Made For You', 'color': Colors.blueAccent},
+      {'title': 'Charts', 'color': Colors.purpleAccent},
+      {'title': 'New Releases', 'color': Colors.pinkAccent},
+      {'title': 'Discover', 'color': Colors.teal},
+      {'title': 'Radio', 'color': Colors.orangeAccent},
+      {'title': 'Pop', 'color': Colors.greenAccent},
+      {'title': 'Rock', 'color': Colors.indigoAccent},
+      {'title': 'Hip-Hop', 'color': Colors.deepOrangeAccent},
+      {'title': 'K-Pop', 'color': Colors.cyan},
+    ];
+  }
 
   @override
   void initState() {
@@ -88,14 +106,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(localeProvider);
+
+    // Reload categories when region changes
+    ref.listen(regionProvider, (previous, next) {
+      if (previous != next) {
+        setState(() {});
+      }
+    });
+
     return Scaffold(
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 24, 16, 16),
-              child: Text('Search', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+              child: Text(t.search, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -106,7 +133,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: Colors.white,
-                  hintText: 'What do you want to listen to?',
+                  hintText: t.searchHint,
                   hintStyle: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w600),
                   prefixIcon: const Icon(Icons.search, color: Colors.black),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
@@ -124,12 +151,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             children: [
                               Icon(Icons.search_off, size: 64, color: Colors.grey[700]),
                               const SizedBox(height: 16),
-                              const Text('No reliable results found or you went offline.', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                              Text(t.noResults, style: const TextStyle(color: Colors.grey, fontSize: 16)),
                             ],
                           ),
                         )
                       : _controller.text.isEmpty
-                          ? _buildBrowseAll()
+                          ? _buildBrowseAll(t)
                           : _buildSearchResults(),
             ),
           ],
@@ -138,37 +165,49 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _buildBrowseAll() {
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.6,
-      ),
-      itemCount: _categories.length,
-      itemBuilder: (context, index) {
-        final cat = _categories[index];
-        return InkWell(
-          onTap: () {
-            _controller.text = cat['title'];
-            _onSearchChanged('${cat['title']} music playlist official 2024 hits');
-          },
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            decoration: BoxDecoration(
-              color: cat['color'],
-              borderRadius: BorderRadius.circular(8),
+  Widget _buildBrowseAll(LocalizedStrings t) {
+    final cats = _categories;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Text(t.browseAll, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white70)),
+        ),
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 1.6,
             ),
-            padding: const EdgeInsets.all(12),
-            child: Text(
-              cat['title'],
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
-            ),
+            itemCount: cats.length,
+            itemBuilder: (context, index) {
+              final cat = cats[index];
+              return InkWell(
+                onTap: () {
+                  _controller.text = cat['title'];
+                  _onSearchChanged('${cat['title']} music playlist official 2024 hits');
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: cat['color'],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    cat['title'],
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                  ),
+                ),
+              );
+            },
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:audio_service/audio_service.dart';
 import '../providers/player_provider.dart';
+import '../providers/settings_provider.dart';
 import '../models/song_model.dart';
 import '../services/download_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -29,6 +31,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _isVideoLoading = false;
   String? _loadedVideoId;
 
+  // Sleep Timer
+  Timer? _sleepTimer;
+  int? _sleepMinutesRemaining;
+
   @override
   void initState() {
     super.initState();
@@ -38,11 +44,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void dispose() {
     _videoController?.dispose();
     _pageController.dispose();
+    _sleepTimer?.cancel();
     super.dispose();
   }
 
+  void _disposeVideo() {
+    _videoController?.dispose();
+    _videoController = null;
+    _loadedVideoId = null;
+  }
+
   Future<void> _loadVideo(String videoId) async {
-    if (_loadedVideoId == videoId) {
+    if (_loadedVideoId == videoId && _videoController != null) {
       _videoController?.play();
       return;
     }
@@ -58,7 +71,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _videoController?.dispose();
       _videoController = VideoPlayerController.networkUrl(Uri.parse(url));
       await _videoController!.initialize();
-      await _videoController!.setVolume(0); // Mute the video, AudioService plays the sound
+      await _videoController!.setVolume(0);
       _videoController!.setLooping(true);
       _loadedVideoId = videoId;
       
@@ -75,8 +88,72 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
     } catch (e) {
       if (mounted) setState(() => _isVideoLoading = false);
-      debugPrint("Video load error: \$e");
+      debugPrint("Video load error: $e");
     }
+  }
+
+  void _showSleepTimerSheet() {
+    final t = ref.read(localeProvider);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF282828),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(t.sleepTimer,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+            ),
+            ...[15, 30, 45, 60].map((mins) => ListTile(
+              leading: const Icon(Icons.timer, color: Colors.white70),
+              title: Text('$mins ${t == LocalizedStrings.tr ? "dakika" : "minutes"}',
+                  style: const TextStyle(color: Colors.white)),
+              onTap: () {
+                _startSleepTimer(mins);
+                Navigator.pop(ctx);
+              },
+            )),
+            if (_sleepTimer != null)
+              ListTile(
+                leading: const Icon(Icons.timer_off, color: Colors.redAccent),
+                title: Text(t.sleepTimerOff, style: const TextStyle(color: Colors.redAccent)),
+                onTap: () {
+                  _cancelSleepTimer();
+                  Navigator.pop(ctx);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _startSleepTimer(int minutes) {
+    _sleepTimer?.cancel();
+    setState(() => _sleepMinutesRemaining = minutes);
+    _sleepTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          _sleepMinutesRemaining = _sleepMinutesRemaining! - 1;
+          if (_sleepMinutesRemaining! <= 0) {
+            ref.read(playerNotifierProvider.notifier).pause();
+            _cancelSleepTimer();
+          }
+        });
+      }
+    });
+  }
+
+  void _cancelSleepTimer() {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    if (mounted) setState(() => _sleepMinutesRemaining = null);
   }
 
   String _fmt(Duration d) {
@@ -95,9 +172,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (mounted) {
       setState(() => _isDownloading = false);
       final isSuccess = !result.startsWith('Error');
-      // Let's modify riverpod provider to broadcast errors if needed, but since we are modifying files, let's inject a UI feedback mechanism in MainScreen or PlayerScreen.
-
-      // Wait, doing it in PlayerScreen is easier because we have ScafffoldMessenger context there.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -130,22 +204,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
     });
 
-    // Sync video loosely when drifting occurs (e.g. from user seeking via slider)
+    // Sync video position when drifting occurs
     ref.listen(positionProvider, (previous, next) {
       final pos = next.value;
       if (pos != null && _videoController != null && _pageController.hasClients && _pageController.page == 1) {
          final diff = (pos - _videoController!.value.position).inMilliseconds.abs();
-         if (diff > 1500) { // If drifted more than 1.5 seconds, sync it up
+         if (diff > 1500) {
             _videoController!.seekTo(pos);
          }
       }
     });
 
-    // Listen to song changes to update video if we are on the video page
+    // Listen to song changes – dispose old video, load new if on video page
     ref.listen(currentSongProvider, (previous, next) {
       final nextSong = next.value;
-      if (nextSong != null && _pageController.hasClients && _pageController.page == 1) {
-        _loadVideo(nextSong.id);
+      if (nextSong != null && previous?.value?.id != nextSong.id) {
+        _disposeVideo();
+        if (_pageController.hasClients && _pageController.page == 1) {
+          _loadVideo(nextSong.id);
+        }
       }
     });
 
@@ -192,225 +269,289 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           },
           child: Stack(
             fit: StackFit.expand,
-        children: [
-          // Blurred background
-          CachedNetworkImage(
-            imageUrl: song.albumArt, fit: BoxFit.cover,
-            errorWidget: (context, url, error) => Container(color: Colors.grey[900]),
-          ),
-          BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
-            child: Container(color: Colors.black.withOpacity(0.55)),
-          ),
+            children: [
+              // Blurred background
+              CachedNetworkImage(
+                imageUrl: song.albumArt, fit: BoxFit.cover,
+                errorWidget: (context, url, error) => Container(color: Colors.grey[900]),
+              ),
+              BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
+                child: Container(color: Colors.black.withOpacity(0.55)),
+              ),
 
-          // Content
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                children: [
-                  const SizedBox(height: 8),
-                  // Top bar
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              // Content
+              SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
                     children: [
-                      IconButton(
-                        icon: const Icon(Icons.keyboard_arrow_down, size: 32, color: Colors.white),
-                        onPressed: () => context.pop(),
-                      ),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            const Text('PLAYING FROM',
-                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 1.5, color: Colors.white60)),
-                            Text(song.artist,
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
-                          ],
-                        ),
-                      ),
-                      IconButton(icon: const Icon(Icons.more_vert, color: Colors.white), onPressed: () {
-                         SongOptionsSheet.show(context, song);
-                      }),
-                    ],
-                  ),
-
-                  const SizedBox(height: 32),
-
-                  // Album art + Video with PageView
-                  SizedBox(
-                    height: MediaQuery.of(context).size.width - 80,
-                    width: MediaQuery.of(context).size.width - 80,
-                    child: PageView(
-                      controller: _pageController,
-                      physics: const BouncingScrollPhysics(),
-                      onPageChanged: (index) {
-                        if (index == 1) {
-                          _loadVideo(song.id);
-                          final currentPos = ref.read(positionProvider).value ?? Duration.zero;
-                          _videoController?.seekTo(currentPos);
-                          if (ref.read(isPlayingProvider)) {
-                            _videoController?.play();
-                          }
-                        } else {
-                          _videoController?.pause();
-                        }
-                      },
-                      children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 40, spreadRadius: 5)],
+                      const SizedBox(height: 8),
+                      // Top bar
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.keyboard_arrow_down, size: 32, color: Colors.white),
+                            onPressed: () => context.pop(),
                           ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: CachedNetworkImage(
-                              imageUrl: song.albumArt,
-                              fit: BoxFit.cover,
-                              errorWidget: (context, url, error) => Container(
-                                color: Colors.grey[900],
-                                child: const Icon(Icons.music_note, size: 80, color: Colors.white38),
+                          Expanded(
+                            child: Column(
+                              children: [
+                                const Text('PLAYING FROM',
+                                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 1.5, color: Colors.white60)),
+                                Text(song.artist,
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                              ],
+                            ),
+                          ),
+                          IconButton(icon: const Icon(Icons.more_vert, color: Colors.white), onPressed: () {
+                             SongOptionsSheet.show(context, song);
+                          }),
+                        ],
+                      ),
+
+                      const SizedBox(height: 32),
+
+                      // Album art + Video with PageView
+                      SizedBox(
+                        height: MediaQuery.of(context).size.width - 80,
+                        width: MediaQuery.of(context).size.width - 80,
+                        child: PageView(
+                          controller: _pageController,
+                          physics: const BouncingScrollPhysics(),
+                          onPageChanged: (index) {
+                            if (index == 1) {
+                              _loadVideo(song.id);
+                              final currentPos = ref.read(positionProvider).value ?? Duration.zero;
+                              _videoController?.seekTo(currentPos);
+                              if (ref.read(isPlayingProvider)) {
+                                _videoController?.play();
+                              }
+                            } else {
+                              _videoController?.pause();
+                            }
+                          },
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 40, spreadRadius: 5)],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: CachedNetworkImage(
+                                  imageUrl: song.albumArt,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (context, url, error) => Container(
+                                    color: Colors.grey[900],
+                                    child: const Icon(Icons.music_note, size: 80, color: Colors.white38),
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            color: Colors.black,
-                            child: _isVideoLoading
-                                ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                                : (_videoController != null && _videoController!.value.isInitialized)
-                                    ? AspectRatio(
+                            // Video page with thumbnail background
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  // Thumbnail background (always visible until video loads)
+                                  CachedNetworkImage(
+                                    imageUrl: song.albumArt,
+                                    fit: BoxFit.cover,
+                                    errorWidget: (context, url, error) => Container(color: Colors.black),
+                                  ),
+                                  // Dark overlay on thumbnail
+                                  Container(color: Colors.black.withOpacity(0.4)),
+                                  // Video or loading indicator
+                                  if (_isVideoLoading)
+                                    const Center(child: CircularProgressIndicator(color: Colors.white))
+                                  else if (_videoController != null && _videoController!.value.isInitialized)
+                                    Center(
+                                      child: AspectRatio(
                                         aspectRatio: _videoController!.value.aspectRatio,
                                         child: VideoPlayer(_videoController!),
-                                      )
-                                    : const Center(child: Icon(Icons.error, color: Colors.white54)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 32),
-                  
-                  // No huge red error box anymore, just silent failure handling or toast.
-                  if (processingState == AudioProcessingState.error)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8.0),
-                      child: Text('Stream unavailable. Could not load.', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
-                    ),
-
-                  const SizedBox(height: 32),
-
-                  // Song info + like
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(song.title,
-                                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
-                            const SizedBox(height: 4),
-                            Text(song.artist, style: const TextStyle(fontSize: 16, color: Colors.white60),
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                                      ),
+                                    )
+                                  else
+                                    const Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.play_circle_outline, color: Colors.white54, size: 48),
+                                          SizedBox(height: 8),
+                                          Text('Swipe to load clip', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                      IconButton(
-                        icon: Icon(isLiked ? Icons.favorite : Icons.favorite_border,
-                            color: isLiked ? const Color(0xFF1DB954) : Colors.white, size: 28),
-                        onPressed: () => _openPlaylistPopup(song),
+
+                      const SizedBox(height: 32),
+                      
+                      if (processingState == AudioProcessingState.error)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8.0),
+                          child: Text('Stream unavailable. Could not load.', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+                        ),
+
+                      const SizedBox(height: 32),
+
+                      // Song info + like
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(song.title,
+                                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                                const SizedBox(height: 4),
+                                Text(song.artist, style: const TextStyle(fontSize: 16, color: Colors.white60),
+                                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(isLiked ? Icons.favorite : Icons.favorite_border,
+                                color: isLiked ? const Color(0xFF1DB954) : Colors.white, size: 28),
+                            onPressed: () => _openPlaylistPopup(song),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
 
-                  const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                  // Seek bar
-                  SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      trackHeight: 3,
-                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                      activeTrackColor: Colors.white,
-                      inactiveTrackColor: Colors.white24,
-                      thumbColor: Colors.white,
-                    ),
-                    child: Slider(
-                      min: 0,
-                      max: maxDur,
-                      value: curPos,
-                      onChanged: (v) => ref.read(playerNotifierProvider.notifier).seekTo(Duration(seconds: v.toInt())),
-                    ),
-                  ),
-
-                  // Time labels
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(_fmt(position), style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                        Text(_fmt(song.duration), style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Controls
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.shuffle, color: Colors.white60, size: 22),
-                        onPressed: () => ref.read(playerNotifierProvider.notifier).toggleShuffle(),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.skip_previous_rounded, size: 42, color: Colors.white),
-                        onPressed: () => ref.read(playerNotifierProvider.notifier).skipToPrevious(),
-                      ),
-                      // Play/Pause with loading state
-                      GestureDetector(
-                        onTap: isBuffering ? null : () => ref.read(playerNotifierProvider.notifier).togglePlayPause(),
-                        child: Container(
-                          width: 64,
-                          height: 64,
-                          decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white),
-                          child: isBuffering
-                              ? const Padding(
-                                  padding: EdgeInsets.all(16),
-                                  child: CircularProgressIndicator(color: Colors.black, strokeWidth: 3),
-                                )
-                              : Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                                  color: Colors.black, size: 40),
+                      // Seek bar
+                      SliderTheme(
+                        data: SliderTheme.of(context).copyWith(
+                          trackHeight: 3,
+                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                          activeTrackColor: Colors.white,
+                          inactiveTrackColor: Colors.white24,
+                          thumbColor: Colors.white,
+                        ),
+                        child: Slider(
+                          min: 0,
+                          max: maxDur,
+                          value: curPos,
+                          onChanged: (v) => ref.read(playerNotifierProvider.notifier).seekTo(Duration(seconds: v.toInt())),
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.skip_next_rounded, size: 42, color: Colors.white),
-                        onPressed: () => ref.read(playerNotifierProvider.notifier).skipToNext(),
+
+                      // Time labels
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(_fmt(position), style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                            Text(_fmt(song.duration), style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                          ],
+                        ),
                       ),
-                      _isDownloading
-                          ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : IconButton(
-                              icon: Icon(isDownloaded ? Icons.download_done_rounded : Icons.download_rounded,
-                                  color: isDownloaded ? const Color(0xFF1DB954) : Colors.white60, size: 22),
-                              onPressed: isDownloaded ? null : () => _download(song),
+
+                      const SizedBox(height: 16),
+
+                      // Controls with Glassmorphism
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.white.withOpacity(0.1)),
                             ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.shuffle, color: Colors.white60, size: 22),
+                                  onPressed: () => ref.read(playerNotifierProvider.notifier).toggleShuffle(),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.skip_previous_rounded, size: 42, color: Colors.white),
+                                  onPressed: () => ref.read(playerNotifierProvider.notifier).skipToPrevious(),
+                                ),
+                                // Play/Pause
+                                GestureDetector(
+                                  onTap: isBuffering ? null : () => ref.read(playerNotifierProvider.notifier).togglePlayPause(),
+                                  child: Container(
+                                    width: 64,
+                                    height: 64,
+                                    decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white),
+                                    child: isBuffering
+                                        ? const Padding(
+                                            padding: EdgeInsets.all(16),
+                                            child: CircularProgressIndicator(color: Colors.black, strokeWidth: 3),
+                                          )
+                                        : Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                                            color: Colors.black, size: 40),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.skip_next_rounded, size: 42, color: Colors.white),
+                                  onPressed: () => ref.read(playerNotifierProvider.notifier).skipToNext(),
+                                ),
+                                _isDownloading
+                                    ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                    : IconButton(
+                                        icon: Icon(isDownloaded ? Icons.download_done_rounded : Icons.download_rounded,
+                                            color: isDownloaded ? const Color(0xFF1DB954) : Colors.white60, size: 22),
+                                        onPressed: isDownloaded ? null : () => _download(song),
+                                      ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Sleep Timer button
+                      GestureDetector(
+                        onTap: _showSleepTimerSheet,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.bedtime_rounded,
+                              color: _sleepMinutesRemaining != null ? const Color(0xFF1DB954) : Colors.white38,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _sleepMinutesRemaining != null
+                                  ? '${_sleepMinutesRemaining} min'
+                                  : (ref.read(localeProvider).sleepTimer),
+                              style: TextStyle(
+                                color: _sleepMinutesRemaining != null ? const Color(0xFF1DB954) : Colors.white38,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 40),
                     ],
                   ),
-
-                  const SizedBox(height: 40),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
-      ),
+        ),
       ),
     );
   }

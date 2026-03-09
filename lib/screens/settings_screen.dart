@@ -106,6 +106,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final t = ref.watch(localeProvider);
     final region = ref.watch(regionProvider);
     final currentLang = settingsBox.get('language', defaultValue: 'English');
+    final regionLabel = region == 'TR' ? 'Türkiye' : 'USA / International';
+    final langLabel = t == LocalizedStrings.tr ? 'Dil' : 'Language';
+    final regionTitle = t == LocalizedStrings.tr ? 'Bölge' : 'Region';
 
     return Scaffold(
       appBar: AppBar(
@@ -116,17 +119,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         padding: const EdgeInsets.all(16),
         physics: const BouncingScrollPhysics(),
         children: [
-          const ListTile(
-            leading: Icon(Icons.account_circle, size: 48, color: Color(0xFF1DB954)),
-            title: Text('Profile', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            subtitle: Text('Manage your account'),
+          ListTile(
+            leading: const Icon(Icons.account_circle, size: 48, color: Color(0xFF1DB954)),
+            title: Text(t == LocalizedStrings.tr ? 'Profil' : 'Profile', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            subtitle: Text(t == LocalizedStrings.tr ? 'Hesabınızı yönetin' : 'Manage your account'),
           ),
           const Divider(height: 32, color: Colors.white24),
           
           SwitchListTile(
             secondary: const Icon(Icons.data_saver_on, color: Colors.white),
             title: Text(t.dataSaver, style: const TextStyle(fontWeight: FontWeight.w500)),
-            subtitle: const Text('Set audio quality to low', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            subtitle: Text(
+              t == LocalizedStrings.tr ? 'Düşük ses kalitesi ile akış' : 'Set audio quality to low',
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
+            ),
             value: _dataSaver,
             activeColor: const Color(0xFF1DB954),
             onChanged: _toggleDataSaver,
@@ -135,7 +141,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ListTile(
             leading: const Icon(Icons.language, color: Colors.white),
             title: Text(t.language, style: const TextStyle(fontWeight: FontWeight.w500)),
-            subtitle: Text('$_language: $currentLang', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            subtitle: Text('$langLabel: $currentLang', style: const TextStyle(color: Colors.grey, fontSize: 12)),
             trailing: const Icon(Icons.chevron_right, color: Colors.grey),
             onTap: _changeLanguage,
           ),
@@ -143,7 +149,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ListTile(
             leading: const Icon(Icons.public, color: Colors.white),
             title: Text(t.region, style: const TextStyle(fontWeight: FontWeight.w500)),
-            subtitle: Text('$_region: \${region == 'TR' ? 'Türkiye' : 'USA / International'}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            subtitle: Text('$regionTitle: $regionLabel', style: const TextStyle(color: Colors.grey, fontSize: 12)),
             trailing: const Icon(Icons.chevron_right, color: Colors.grey),
             onTap: _changeRegion,
           ),
@@ -151,7 +157,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           SwitchListTile(
             secondary: const Icon(Icons.volume_up, color: Colors.white),
             title: Text(t.gaplessPlayback, style: const TextStyle(fontWeight: FontWeight.w500)),
-            subtitle: const Text('Seamless transitions', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            subtitle: Text(
+              t == LocalizedStrings.tr ? 'Kesintisiz geçişler' : 'Seamless transitions',
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
+            ),
             value: _gapless,
             activeColor: const Color(0xFF1DB954),
             onChanged: _toggleGapless,
@@ -168,7 +177,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ListTile(
             leading: const Icon(Icons.delete_sweep, color: Colors.white),
             title: Text(t.clearCache, style: const TextStyle(fontWeight: FontWeight.w500)),
-            subtitle: Text('Storage used: \$_cacheSizeStr', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            subtitle: Text('$_cacheSizeStr', style: const TextStyle(color: Colors.grey, fontSize: 12)),
             trailing: const Icon(Icons.chevron_right, color: Colors.grey),
             onTap: _clearCache,
           ),
@@ -188,7 +197,4 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     );
   }
-
-  String get _language => ref.read(localeProvider) == LocalizedStrings.tr ? 'Dil' : 'Language';
-  String get _region => ref.read(localeProvider) == LocalizedStrings.tr ? 'Bölge' : 'Region';
 }

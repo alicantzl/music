@@ -7,6 +7,7 @@ import '../providers/player_provider.dart';
 import 'playlist_detail_screen.dart';
 import '../widgets/song_options_sheet.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../providers/settings_provider.dart';
 import 'dart:io';
 
 class LibraryScreen extends ConsumerStatefulWidget {
@@ -22,24 +23,25 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   void _createPlaylistDialog() {
+    final t = ref.read(localeProvider);
     final TextEditingController pc = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF282828),
-        title: const Text('New Playlist'),
+        title: Text(t == LocalizedStrings.tr ? 'Yeni Çalma Listesi' : 'New Playlist'),
         content: TextField(
           controller: pc,
           autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Playlist name',
-            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF1DB954))),
+          decoration: InputDecoration(
+            hintText: t == LocalizedStrings.tr ? 'Çalma listesi adı' : 'Playlist name',
+            focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF1DB954))),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            child: Text(t.cancel, style: const TextStyle(color: Colors.white70)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1DB954)),
@@ -57,7 +59,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               }
               Navigator.pop(ctx);
             },
-            child: const Text('Create', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: Text(t == LocalizedStrings.tr ? 'Oluştur' : 'Create', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -66,6 +68,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(localeProvider);
     return DefaultTabController(
       length: 3,
       child: Scaffold(
@@ -82,7 +85,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   ),
                   const SizedBox(width: 12),
                   if (!_isSearching) ...[
-                    const Text('Your Library', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)),
+                    Text(t.library, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24)),
                     const Spacer(),
                     IconButton(
                         icon: const Icon(Icons.search),
@@ -99,7 +102,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         autofocus: true,
                         style: const TextStyle(fontSize: 18),
                         decoration: InputDecoration(
-                          hintText: 'Search...',
+                          hintText: t == LocalizedStrings.tr ? 'Ara...' : 'Search...',
                           border: InputBorder.none,
                           suffixIcon: IconButton(
                             icon: const Icon(Icons.close),
@@ -141,10 +144,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   dividerColor: Colors.transparent,
                   labelStyle: const TextStyle(fontWeight: FontWeight.bold),
                   unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500),
-                  tabs: const [
-                    Tab(text: 'Playlists'),
-                    Tab(text: 'Liked'),
-                    Tab(text: 'Downloads'),
+                  tabs: [
+                    Tab(text: t == LocalizedStrings.tr ? 'Çalma Listeleri' : 'Playlists'),
+                    Tab(text: t == LocalizedStrings.tr ? 'Beğenilenler' : 'Liked'),
+                    Tab(text: t == LocalizedStrings.tr ? 'İndirilenler' : 'Downloads'),
                   ],
                 ),
               ),
