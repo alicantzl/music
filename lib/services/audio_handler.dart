@@ -119,16 +119,20 @@ class PureAudioHandler extends BaseAudioHandler
       }
 
       // Get robust stream via Piped APIs -> fallback youtube_explode_dart
-      final streamUrl = await StreamResolver.getAudioStreamUrl(song.id);
+      final resolved = await StreamResolver.resolve(song.id);
 
-      if (streamUrl == null) {
+      if (resolved == null) {
         throw Exception('No playable stream found, ciphers/APIs blocked.');
       }
-      Uri streamUri = Uri.parse(streamUrl);
 
       // 100% bypass iOS AVPlayer network blocks by proxying through a local Dart web server.
       // AVPlayer only sees "http://127.0.0.1", while Dart Http downloads the real YouTube file.
-      await _player.setAudioSource(ProxyAudioSource(streamUrl, song.id));
+      await _player.setAudioSource(CustomProxyAudioSource(
+        id: song.id,
+        yt: _yt,
+        streamInfo: resolved.info,
+        directUrl: resolved.url,
+      ));
 
       // Update duration from actual stream
       final realDuration = _player.duration;

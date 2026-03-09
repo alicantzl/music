@@ -24,8 +24,8 @@ class DownloadService {
 
       debugPrint('Starting download for: ${song.title}');
 
-      final streamUrl = await StreamResolver.getAudioStreamUrl(song.id);
-      if (streamUrl == null) {
+      final resolved = await StreamResolver.resolve(song.id);
+      if (resolved == null) {
         return 'Error: No audio stream available (ciphers/APIs blocked)';
       }
 
@@ -38,21 +38,23 @@ class DownloadService {
 
       final ext = 'm4a'; // M4A is the most compatible iOS format
       final file = File('${folder.path}/${song.id}.$ext');
+      final sink = file.openWrite();
 
-      // Download the stream using Dart's native HttpClient
-      final client = HttpClient();
-      final request = await client.getUrl(Uri.parse(streamUrl));
-      
-      // Mimic a browser to prevent 403 blocks during download
-      request.headers.add('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36');
-      
-      final response = await request.close();
-      if (response.statusCode != 200) {
-        return 'Error: HTTP ${response.statusCode} during download';
+      if (resolved.url != null) {
+        // Download the stream using Dart's native HttpClient
+        final client = HttpClient();
+        final request = await client.getUrl(Uri.parse(resolved.url!));
+        request.headers.add('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36');
+        final response = await request.close();
+        if (response.statusCode != 200) {
+          return 'Error: HTTP ${response.statusCode} during download';
+        }
+        await response.pipe(sink);
+      } else if (resolved.info != null) {
+        final stream = _yt.videos.streamsClient.get(resolved.info!);
+        await stream.pipe(sink);
       }
 
-      final sink = file.openWrite();
-      await response.pipe(sink);
       await sink.flush();
       await sink.close();
 
