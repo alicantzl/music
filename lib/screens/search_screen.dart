@@ -188,8 +188,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               final cat = cats[index];
               return InkWell(
                 onTap: () {
+                  final region = ref.read(regionProvider);
+                  final suffix = region == 'TR' ? 'şarkıları 2024 liste' : 'music playlist official 2024 hits';
+                  final query = "${cat['title']} $suffix";
+                  
                   _controller.text = cat['title'];
-                  _onSearchChanged('${cat['title']} music playlist official 2024 hits');
+                  _onSearchChanged(query);
                 },
                 borderRadius: BorderRadius.circular(8),
                 child: Container(

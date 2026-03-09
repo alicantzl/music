@@ -357,22 +357,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               child: Stack(
                                 fit: StackFit.expand,
                                 children: [
-                                  // Thumbnail background (always visible until video loads)
-                                  CachedNetworkImage(
-                                    imageUrl: song.albumArt,
-                                    fit: BoxFit.cover,
-                                    errorWidget: (context, url, error) => Container(color: Colors.black),
-                                  ),
+                                  // Thumbnail background
+                                  if (!_isVideoLoading && (_videoController == null || !_videoController!.value.isInitialized))
+                                    CachedNetworkImage(
+                                      imageUrl: song.albumArt,
+                                      fit: BoxFit.cover,
+                                      errorWidget: (context, url, error) => Container(color: Colors.black),
+                                    ),
                                   // Dark overlay on thumbnail
-                                  Container(color: Colors.black.withOpacity(0.4)),
+                                  if (!_isVideoLoading && (_videoController == null || !_videoController!.value.isInitialized))
+                                    Container(color: Colors.black.withOpacity(0.4)),
+                                  
                                   // Video or loading indicator
                                   if (_isVideoLoading)
                                     const Center(child: CircularProgressIndicator(color: Colors.white))
                                   else if (_videoController != null && _videoController!.value.isInitialized)
-                                    Center(
-                                      child: AspectRatio(
-                                        aspectRatio: _videoController!.value.aspectRatio,
-                                        child: VideoPlayer(_videoController!),
+                                    SizedBox.expand(
+                                      child: FittedBox(
+                                        fit: BoxFit.cover,
+                                        child: SizedBox(
+                                          width: _videoController!.value.size.width,
+                                          height: _videoController!.value.size.height,
+                                          child: VideoPlayer(_videoController!),
+                                        ),
                                       ),
                                     )
                                   else
@@ -476,9 +483,44 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: [
-                                IconButton(
-                                  icon: const Icon(Icons.shuffle, color: Colors.white60, size: 22),
-                                  onPressed: () => ref.read(playerNotifierProvider.notifier).toggleShuffle(),
+                                Consumer(
+                                  builder: (context, ref, _) {
+                                    final isShuffle = ref.watch(shuffleModeProvider);
+                                    final repeatMode = ref.watch(repeatModeProvider);
+                                    
+                                    IconData icon;
+                                    Color color;
+                                    
+                                    if (repeatMode == AudioServiceRepeatMode.one) {
+                                      icon = Icons.repeat_one_rounded;
+                                      color = const Color(0xFF1DB954);
+                                    } else if (isShuffle) {
+                                      icon = Icons.shuffle_rounded;
+                                      color = const Color(0xFF1DB954);
+                                    } else if (repeatMode == AudioServiceRepeatMode.all) {
+                                      icon = Icons.repeat_rounded;
+                                      color = const Color(0xFF1DB954);
+                                    } else {
+                                      icon = Icons.shuffle_rounded;
+                                      color = Colors.white60;
+                                    }
+
+                                    return IconButton(
+                                      icon: Icon(icon, color: color, size: 22),
+                                      onPressed: () {
+                                        if (!isShuffle && repeatMode == AudioServiceRepeatMode.none) {
+                                          ref.read(playerNotifierProvider.notifier).toggleShuffle(); // -> Shuffle
+                                        } else if (isShuffle) {
+                                          ref.read(playerNotifierProvider.notifier).toggleShuffle(); // Shuffle off
+                                          ref.read(playerNotifierProvider.notifier).cycleRepeatMode(); // -> Repeat All
+                                        } else if (repeatMode == AudioServiceRepeatMode.all) {
+                                          ref.read(playerNotifierProvider.notifier).cycleRepeatMode(); // -> Repeat One
+                                        } else {
+                                          ref.read(playerNotifierProvider.notifier).cycleRepeatMode(); // -> None
+                                        }
+                                      },
+                                    );
+                                  },
                                 ),
                                 IconButton(
                                   icon: const Icon(Icons.skip_previous_rounded, size: 42, color: Colors.white),

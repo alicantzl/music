@@ -8,7 +8,6 @@ import 'package:audio_session/audio_session.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../models/song_model.dart';
-import '../models/song_model.dart';
 import 'stream_resolver.dart';
 import 'proxy_audio_source.dart';
 import 'package:path_provider/path_provider.dart';
@@ -18,7 +17,6 @@ import 'dart:math';
 class PureAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
   final AudioPlayer _player = AudioPlayer();
-
 
   String? _currentLoadingId;
   List<SongModel> _queue = [];
@@ -172,6 +170,7 @@ class PureAudioHandler extends BaseAudioHandler
       }
 
       // 2. Resolve Stream
+      if (_currentLoadingId != loadingId) return;
       final settingsBox = Hive.box('settings');
       final bool ds = settingsBox.get('dataSaver', defaultValue: false);
 

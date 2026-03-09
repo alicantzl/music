@@ -186,7 +186,7 @@ class _PlaylistsList extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.queue_music, size: 64, color: Colors.grey[700]),
+                Icon(Icons.queue_music, size: 64, color: Colors.grey[800]),
                 const SizedBox(height: 16),
                 const Text('No playlists found.', style: TextStyle(color: Colors.grey, fontSize: 16)),
               ],
@@ -194,44 +194,66 @@ class _PlaylistsList extends StatelessWidget {
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.only(bottom: 150),
+        return GridView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 150),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: 0.75,
+          ),
           itemCount: playlists.length,
           itemBuilder: (context, index) {
             final playlist = playlists[index];
-            return ListTile(
-              leading: Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: Colors.grey[800],
-                  borderRadius: BorderRadius.circular(4),
-                  image: playlist.imagePath != null
-                      ? DecorationImage(
-                          image: FileImage(File(playlist.imagePath!)),
-                          fit: BoxFit.cover,
-                        )
-                      : null,
-                ),
-                child: playlist.imagePath == null
-                    ? const Icon(Icons.music_note, color: Colors.white)
-                    : null,
-              ),
-              title: Text(playlist.name, maxLines: 1, style: const TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: Text('${playlist.songs.length} songs', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+            return GestureDetector(
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => PlaylistDetailScreen(playlist: playlist),
+                  MaterialPageRoute(builder: (context) => PlaylistDetailScreen(playlist: playlist)),
+                );
+              },
+              onLongPress: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    backgroundColor: const Color(0xFF282828),
+                    title: const Text('Delete Playlist?'),
+                    content: Text('Are you sure you want to delete "${playlist.name}"?'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                      TextButton(
+                        onPressed: () {
+                          Hive.box('playlists').delete(playlist.id);
+                          Navigator.pop(ctx);
+                        },
+                        child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                      ),
+                    ],
                   ),
                 );
               },
-              trailing: IconButton(
-                icon: const Icon(Icons.delete, color: Colors.grey),
-                onPressed: () {
-                   Hive.box('playlists').delete(playlist.id);
-                },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[900],
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))],
+                        image: playlist.imagePath != null
+                            ? DecorationImage(image: FileImage(File(playlist.imagePath!)), fit: BoxFit.cover)
+                            : null,
+                      ),
+                      child: playlist.imagePath == null
+                          ? Center(child: Icon(Icons.music_note, size: 48, color: Colors.white.withOpacity(0.2)))
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(playlist.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text('${playlist.songs.length} songs', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                ],
               ),
             );
           },
@@ -257,27 +279,46 @@ class _LikedSongsList extends ConsumerWidget {
         }
 
         if (songs.isEmpty) {
-          return _buildEmptyState('No liked songs found.');
+          return _buildEmptyState('No liked songs found.', Icons.favorite_border);
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.only(bottom: 150),
-          itemCount: songs.length,
-          itemBuilder: (context, index) {
-            final song = songs[index];
-            return _SongTile(song: song, queue: songs, isLiked: true);
-          },
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: ElevatedButton.icon(
+                onPressed: () => ref.read(playerNotifierProvider.notifier).playSong(songs.first, queue: songs),
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Play All'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1DB954),
+                  minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.only(bottom: 150),
+                itemCount: songs.length,
+                itemBuilder: (context, index) {
+                  final song = songs[index];
+                  return _SongTile(song: song, queue: songs, isLiked: true);
+                },
+              ),
+            ),
+          ],
         );
       },
     );
   }
 
-  Widget _buildEmptyState(String message) {
+  Widget _buildEmptyState(String message, IconData icon) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.favorite_border, size: 64, color: Colors.grey[700]),
+          Icon(icon, size: 64, color: Colors.grey[800]),
           const SizedBox(height: 16),
           Text(message, style: const TextStyle(color: Colors.grey, fontSize: 16)),
         ],
@@ -306,7 +347,7 @@ class _DownloadsList extends ConsumerWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.download_for_offline_outlined, size: 64, color: Colors.grey[700]),
+                Icon(Icons.download_for_offline_outlined, size: 64, color: Colors.grey[800]),
                 const SizedBox(height: 16),
                 const Text('No downloads found.', style: TextStyle(color: Colors.grey, fontSize: 16)),
               ],
@@ -314,13 +355,32 @@ class _DownloadsList extends ConsumerWidget {
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.only(bottom: 150),
-          itemCount: songs.length,
-          itemBuilder: (context, index) {
-            final song = songs[index];
-            return _SongTile(song: song, queue: songs, isDownloaded: true);
-          },
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: ElevatedButton.icon(
+                onPressed: () => ref.read(playerNotifierProvider.notifier).playSong(songs.first, queue: songs),
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Play All'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1DB954),
+                  minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.only(bottom: 150),
+                itemCount: songs.length,
+                itemBuilder: (context, index) {
+                  final song = songs[index];
+                  return _SongTile(song: song, queue: songs, isDownloaded: true);
+                },
+              ),
+            ),
+          ],
         );
       },
     );

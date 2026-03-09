@@ -189,11 +189,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
 
-            // Trending Hits Section
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 28, 16, 12),
-                child: Text('🔥 \${t.trendingHits}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                child: Text('🔥 ${t.trendingHits}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
               ),
             ),
             SliverToBoxAdapter(
@@ -235,11 +234,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
 
-            // 'Mixes' Section (circular artist cards)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 28, 16, 12),
-                child: Text('🎧 \${t.madeForYou}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                child: Text('🎧 ${t.madeForYou}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
               ),
             ),
             SliverToBoxAdapter(
@@ -279,11 +277,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
 
-            // All songs as a list
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 28, 16, 12),
-                child: Text('📋 \${t.allSongs}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                child: Text('📋 ${t.allSongs}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
               ),
             ),
             SliverList(
